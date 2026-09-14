@@ -8,3 +8,7 @@ datasets/gold/
 
 *.pyc
 .env
+datasets/meter/
+datasets/bronze/
+datasets/silver/
+datasets/gold/
