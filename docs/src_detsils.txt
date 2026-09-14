@@ -1,0 +1,10 @@
+EIA Electricity Demand Data (Real API) Website: https://www.eia.gov/opendata/
+for getting api need to resgister on: https://www.eia.gov/opendata/register.php
+#you will get mail for verification and api key
+
+
+Open-Meteo Weather API (Real API) Website: https://open-meteo.com/
+API: https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m
+
+Smart Meter Dataset (Real Data) website and 
+search Individual Household Electric Power Consumption: https://archive.ics.uci.edu/

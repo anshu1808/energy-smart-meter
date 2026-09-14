@@ -1,0 +1,16 @@
+PS C:\Users\kenexai\databricks_project\energy-smart-meter> databricks auth describe --profile DEFAULT
+Host: https://dbc-23c305ec-be26.cloud.databricks.com
+User: anshu.accent@gmail.com
+Authenticated with: pat
+-----
+Current configuration:
+  ✓ host: https://dbc-23c305ec-be26.cloud.databricks.com (from C:\Users\kenexai/.databrickscfg config file)
+  ✓ account_id: 390f8dce-d568-444a-bb4b-2ee69e262bfd
+  ✓ workspace_id: 2756934830598112
+  ✓ token: ******** (from C:\Users\kenexai/.databrickscfg config file)
+  ✓ profile: DEFAULT (from --profile flag)
+  ✓ databricks_cli_path: C:\Users\kenexai\AppData\Local\Microsoft\WinGet\Packages\Databricks.DatabricksCLI_Microsoft.Winget.Source_8wekyb3d8bbwe\databricks.exe
+  ✓ auth_type: pat
+  ✓ cloud: AWS
+  ✓ audience: https://dbc-23c305ec-be26.cloud.databricks.com/oidc/v1/token
+  ✓ discovery_url: https://dbc-23c305ec-be26.cloud.databricks.com/oidc/.well-known/oauth-authorization-server

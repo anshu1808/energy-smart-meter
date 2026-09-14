@@ -1,0 +1,58 @@
+bundle:
+  name: energy_smart_meter
+  uuid: a36d509c-f99f-4940-bbfa-cb3c671387d0
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: The catalog to use
+
+  schema:
+    description: The schema to use
+
+  pipeline_development:
+    description: DLT development mode
+
+targets:
+
+  dev:
+    mode: development
+    default: true
+
+    workspace:
+      host: https://dbc-23c305ec-be26.cloud.databricks.com
+
+    variables:
+      catalog: energy
+      schema: energy_smart_meter_pipe_dev
+      pipeline_development: true
+
+  qa:
+    mode: production
+
+    workspace:
+      host: https://dbc-23c305ec-be26.cloud.databricks.com
+      root_path: /Workspace/Users/anshu.accent@gmail.com/.bundle/${bundle.name}/${bundle.target}
+
+    variables:
+      catalog: energy
+      schema: energy_smart_meter_pipe_qa
+      pipeline_development: false
+
+  prod:
+    mode: production
+
+    workspace:
+      host: https://dbc-23c305ec-be26.cloud.databricks.com
+      root_path: /Workspace/Users/anshu.accent@gmail.com/.bundle/${bundle.name}/${bundle.target}
+
+    variables:
+      catalog: energy
+      schema: energy_smart_meter_pipe_prod
+      pipeline_development: false
+
+    permissions:
+      - user_name: anshu.accent@gmail.com
+        level: CAN_MANAGE
