@@ -1,5 +1,10 @@
 .venv/
 __pycache__/
+.ipynb_checkpoints/
+
+datasets/bronze/
+datasets/silver/
+datasets/gold/
+
 *.pyc
-dist/
-build/
+.env
