@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
@@ -9,19 +12,22 @@ from pyspark.sql.functions import (
 )
 from pyspark.sql.window import Window
 from delta.tables import DeltaTable
-from data_quality import validate_data_quality
-from schema_drift import add_schema_drift_metadata
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
-TARGET_TABLE = "energy.silver.dim_meter"
+TARGET_TABLE = f"{catalog}.silver.dim_meter"
 
 # =====================================================
 # SOURCE
 # =====================================================
 
 meter_df = spark.table(
-    "energy.bronze.bronze_meter_readings"
+    f"{catalog}.bronze.bronze_meter_readings"
 )
 
 # =====================================================

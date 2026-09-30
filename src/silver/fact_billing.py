@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
@@ -13,10 +16,13 @@ from pyspark.sql.functions import (
 )
 
 #from silver import dim_tariff
-from data_quality import validate_data_quality
-from schema_drift import add_schema_drift_metadata
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
 STANDARD_FLAT_RATE = 0.15  # confirm actual Std-tariff policy rate
 
@@ -24,12 +30,12 @@ STANDARD_FLAT_RATE = 0.15  # confirm actual Std-tariff policy rate
 # READ BRONZE TABLES
 # =====================================================
 
-customer_df = spark.table("energy.silver.dim_customer")
-meter_df = spark.table("energy.silver.dim_meter")
-tariff_df = spark.table("energy.silver.dim_tariff")
-date_df = spark.table("energy.silver.dim_date")
-meter_readings = spark.table("energy.bronze.bronze_meter_readings")
-consumption_df = spark.table("energy.silver.fact_consumption")
+customer_df = spark.table(f"{catalog}.silver.dim_customer")
+meter_df = spark.table(f"{catalog}.silver.dim_meter")
+tariff_df = spark.table(f"{catalog}.silver.dim_tariff")
+date_df = spark.table(f"{catalog}.silver.dim_date")
+meter_readings = spark.table(f"{catalog}.bronze.bronze_meter_readings")
+consumption_df = spark.table(f"{catalog}.silver.fact_consumption")
 
 readings = (consumption_df
     .join(
@@ -153,7 +159,7 @@ billing = billing.select(
 billing = validate_data_quality(
     spark,
     billing,
-    "energy.silver.fact_billing",
+    f"{catalog}.silver.fact_billing",
     [
         {"name": "billing_business_key_not_null", "check_type": "not_null", "column": "billing_business_key"},
         {"name": "bill_id_not_null", "check_type": "not_null", "column": "bill_id"},
@@ -164,7 +170,7 @@ billing = validate_data_quality(
 )
 
 billing = add_schema_drift_metadata(
-    spark, billing, "energy.silver.fact_billing"
+    spark, billing, f"{catalog}.silver.fact_billing"
 )
 
 billing = billing.dropDuplicates(["billing_business_key"])
@@ -176,7 +182,7 @@ billing = billing.dropDuplicates(["billing_business_key"])
 
 from delta.tables import DeltaTable
 
-TARGET_TABLE = "energy.silver.fact_billing"
+TARGET_TABLE = f"{catalog}.silver.fact_billing"
 
 if not spark.catalog.tableExists(TARGET_TABLE):
 
@@ -193,6 +199,16 @@ else:
         spark,
         TARGET_TABLE
     )
+
+    # Align schemas: add new source columns to target, add stale target columns to source as nulls
+    _target_schema = {f.name: f.dataType for f in spark.table(TARGET_TABLE).schema.fields}
+    for _f in billing.schema.fields:
+        if _f.name not in _target_schema:
+            spark.sql(f"ALTER TABLE {TARGET_TABLE} ADD COLUMNS ({_f.name} {_f.dataType.simpleString()})")
+    _target_schema = {f.name: f.dataType for f in spark.table(TARGET_TABLE).schema.fields}
+    for _name, _dtype in _target_schema.items():
+        if _name not in billing.columns:
+            billing = billing.withColumn(_name, lit(None).cast(_dtype))
 
     (
         target.alias("t")

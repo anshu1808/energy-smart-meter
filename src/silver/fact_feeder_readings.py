@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
@@ -10,13 +13,16 @@ from pyspark.sql.functions import (
 )
 from delta.tables import DeltaTable
 
-from schema_drift import add_schema_drift_metadata
-from data_quality import validate_data_quality
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
-BRONZE_TABLE = "energy.bronze.bronze_feeder_readings"
-TARGET_TABLE = "energy.silver.fact_feeder_readings"
+BRONZE_TABLE = f"{catalog}.bronze.bronze_feeder_readings"
+TARGET_TABLE = f"{catalog}.silver.fact_feeder_readings"
 
 # ==========================================
 # 1. READ BRONZE & FILTER DQ ERRORS

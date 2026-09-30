@@ -7,7 +7,7 @@ def add_schema_drift_metadata(
     dataframe: DataFrame,
     target_table: str,
 ) -> DataFrame:
-    """Annotate a silver DataFrame with newly added or changed source columns."""
+    """Annotate a DataFrame with newly added or changed source columns."""
     if spark.catalog.tableExists(target_table):
         target_types = {
             field.name: field.dataType.simpleString()

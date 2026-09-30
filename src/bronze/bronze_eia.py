@@ -1,8 +1,16 @@
+import sys
+from pathlib import Path
+
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, current_timestamp, lit
-from schema_drift import add_schema_drift_metadata
-from data_quality import validate_data_quality
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
+
+catalog = get_catalog()
+
 spark = SparkSession.builder.getOrCreate() 
 
 eia_df = (
@@ -21,7 +29,7 @@ eia_df = (
     )
 )
 eia_df = add_schema_drift_metadata(
-    spark, eia_df, "energy.bronze.bronze_eia"
+    spark, eia_df, f"{catalog}.bronze.bronze_eia"
 )
 
 eia_df = eia_df.dropDuplicates(["period", "respondent", "type"])
@@ -29,7 +37,7 @@ eia_df = eia_df.dropDuplicates(["period", "respondent", "type"])
 eia_df = validate_data_quality(
     spark,
     eia_df,
-    "energy.bronze.bronze_eia",
+    f"{catalog}.bronze.bronze_eia",
     [
         {"name": "period_not_null", "check_type": "not_null", "column": "period"},
         {"name": "respondent_not_null", "check_type": "not_null", "column": "respondent"},
@@ -40,7 +48,7 @@ eia_df = validate_data_quality(
 
 eia_df.show()
 
-target_table = "energy.bronze.bronze_eia"
+target_table = f"{catalog}.bronze.bronze_eia"
 
 if spark.catalog.tableExists(target_table):
 

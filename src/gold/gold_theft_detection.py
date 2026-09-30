@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, col, current_timestamp, date_format, lit
@@ -5,13 +8,16 @@ from pyspark.sql.functions import round as spark_round
 from pyspark.sql.functions import stddev_pop
 from pyspark.sql.functions import sum as spark_sum
 from pyspark.sql.functions import when
-from data_quality import validate_data_quality
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 #
-TARGET_TABLE = "energy.gold.gold_theft_detection"
-consumption = spark.table("energy.silver.fact_consumption")
-customers = spark.table("energy.silver.dim_customer")
+TARGET_TABLE = f"{catalog}.gold.gold_theft_detection"
+consumption = spark.table(f"{catalog}.silver.fact_consumption")
+customers = spark.table(f"{catalog}.silver.dim_customer")
 
 meter_monthly = (
 	consumption

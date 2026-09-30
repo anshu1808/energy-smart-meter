@@ -1,11 +1,16 @@
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, lit
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
-AUDIT_TABLE = "energy.audit.pipeline_lineage"
+AUDIT_TABLE = f"{catalog}.audit.pipeline_lineage"
 PIPELINE_SCHEMAS = ("bronze", "silver", "gold", "audit")
 
 def get_databricks_context():
@@ -75,7 +80,7 @@ run_id = get_run_id(context)
 audit_task_start_ts = datetime.now(timezone.utc).replace(tzinfo=None)
 pipeline_start_ts = get_pipeline_start_ts(context)
 
-spark.sql("CREATE SCHEMA IF NOT EXISTS energy.audit")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.audit")
 
 schema_filter = ", ".join(f"'{schema_name}'" for schema_name in PIPELINE_SCHEMAS)
 tables_df = spark.sql(
@@ -85,7 +90,7 @@ tables_df = spark.sql(
         table_schema,
         table_name,
         table_type
-    FROM energy.information_schema.tables
+    FROM {catalog}.information_schema.tables
     WHERE table_schema IN ({schema_filter})
     """
 )

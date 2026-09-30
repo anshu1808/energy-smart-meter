@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
@@ -7,31 +10,34 @@ from pyspark.sql.functions import (
     date_format
 )
 from delta.tables import DeltaTable
-from data_quality import validate_data_quality
-from schema_drift import add_schema_drift_metadata
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
-TARGET_TABLE = "energy.silver.fact_consumption"
+TARGET_TABLE = f"{catalog}.silver.fact_consumption"
 
 # =====================================================
 # SOURCE TABLES
 # =====================================================
 
 meter_readings = spark.table(
-    "energy.bronze.bronze_meter_readings"
+    f"{catalog}.bronze.bronze_meter_readings"
 )
 
 dim_customer = spark.table(
-    "energy.silver.dim_customer"
+    f"{catalog}.silver.dim_customer"
 )
 
 dim_meter = spark.table(
-    "energy.silver.dim_meter"
+    f"{catalog}.silver.dim_meter"
 )
 
 dim_date = spark.table(
-    "energy.silver.dim_date"
+    f"{catalog}.silver.dim_date"
 )
 
 # =====================================================

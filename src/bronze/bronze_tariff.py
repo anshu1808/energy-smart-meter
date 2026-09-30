@@ -1,9 +1,17 @@
+import sys
+from pathlib import Path
+
 import pandas as pd
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, lit
-from schema_drift import add_schema_drift_metadata
-from data_quality import validate_data_quality
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
+
+catalog = get_catalog()
+
 spark = SparkSession.builder.getOrCreate()
 
 tariff_pd = pd.read_excel("/Volumes/energy/bronze/raw/tariff/Tariffs.xlsx")
@@ -23,13 +31,13 @@ tariff_df = (
     )
 )
 tariff_df = add_schema_drift_metadata(
-    spark, tariff_df, "energy.bronze.bronze_tariff"
+    spark, tariff_df, f"{catalog}.bronze.bronze_tariff"
 )
 
 tariff_df = validate_data_quality(
     spark,
     tariff_df,
-    "energy.bronze.bronze_tariff",
+    f"{catalog}.bronze.bronze_tariff",
     [
         {"name": "tariff_datetime_not_null", "check_type": "not_null", "column": "TariffDateTime"},
         {"name": "tariff_not_null", "check_type": "not_null", "column": "Tariff"},
@@ -39,7 +47,7 @@ tariff_df = validate_data_quality(
 
 tariff_df.show()
 
-target_table = "energy.bronze.bronze_tariff"
+target_table = f"{catalog}.bronze.bronze_tariff"
 
 if spark.catalog.tableExists(target_table):
 

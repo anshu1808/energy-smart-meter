@@ -4,11 +4,12 @@ from pyspark.sql.types import (
     StructType, StructField, StringType, LongType, TimestampType
 )
 
-DQ_FAILURE_TABLE = "energy.silver.dq_failures"
+from common.config import get_catalog
 
 
 def _log_dq_failures(spark, table_name, failure_details):
     """Write DQ failure records to the DQ failure tracking table."""
+    dq_failure_table = f"{get_catalog()}.silver.dq_failures"
     schema = StructType([
         StructField("dq_table", StringType(), False),
         StructField("check_name", StringType(), False),
@@ -33,19 +34,19 @@ def _log_dq_failures(spark, table_name, failure_details):
     failure_df = spark.createDataFrame(records, schema)
     failure_df = failure_df.withColumn("check_ts", current_timestamp())
 
-    if not spark.catalog.tableExists(DQ_FAILURE_TABLE):
+    if not spark.catalog.tableExists(dq_failure_table):
         (
             failure_df.write
             .format("delta")
             .option("mergeSchema", "true")
-            .saveAsTable(DQ_FAILURE_TABLE)
+            .saveAsTable(dq_failure_table)
         )
     else:
         (
             failure_df.write
             .format("delta")
             .mode("append")
-            .saveAsTable(DQ_FAILURE_TABLE)
+            .saveAsTable(dq_failure_table)
         )
 
 
@@ -60,7 +61,7 @@ def validate_data_quality(
 
     When any check fails, the failure details (table name, check name, check
     type, column name, failure reason, failed value count, and timestamp)
-    are written to the energy.silver.dq_failures table.
+    are written to the catalog's silver.dq_failures table.
 
     Args:
         spark: SparkSession
@@ -125,8 +126,8 @@ def validate_data_quality(
                 conditions.append(col(column) > max_val)
             if conditions:
                 range_filter = conditions[0]
-                for c in conditions[1:]:
-                    range_filter = range_filter | c
+                for condition in conditions[1:]:
+                    range_filter = range_filter | condition
                 range_filter = range_filter & col(column).isNotNull()
                 out_of_range = dataframe.filter(range_filter).count()
                 if out_of_range > 0:

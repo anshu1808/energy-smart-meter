@@ -1,0 +1,32 @@
+# DBCR audit table: one row per applied changeset (written by ci/record_dbcr.py).
+# Prerequisite: catalog ${energy_catalog} and schema audit already exist (audit exists today: energy.audit).
+databaseChangeLog:
+  - changeSet:
+      id: 2026.09.001-create-audit-dbcr
+      author: anshu
+      labels: ddl,create,audit
+      context: all
+      runInTransaction: false
+      comment: "Create DBCR audit table"
+      changes:
+        - createTable:
+            tableName: dbcr
+            schemaName: audit
+            catalogName: ${energy_catalog}
+            columns:
+              - column: { name: dbcr_id, type: STRING, constraints: { nullable: false } }
+              - column: { name: work_item_id, type: STRING }
+              - column: { name: changeset_id, type: STRING }
+              - column: { name: author, type: STRING }
+              - column: { name: approvers, type: STRING }
+              - column: { name: environment, type: STRING }
+              - column: { name: operation, type: STRING }
+              - column: { name: objects, type: STRING }
+              - column: { name: is_destructive, type: BOOLEAN }
+              - column: { name: rollback_available, type: BOOLEAN }
+              - column: { name: checksum, type: STRING }
+              - column: { name: git_commit, type: STRING }
+              - column: { name: applied_at, type: TIMESTAMP }
+              - column: { name: status, type: STRING }
+      rollback:
+        - dropTable: { tableName: dbcr, schemaName: audit, catalogName: "${energy_catalog}" }

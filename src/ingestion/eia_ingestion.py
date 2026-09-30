@@ -1,7 +1,9 @@
 from pyspark.shell import spark
 
 import os
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 import requests
 
@@ -9,6 +11,10 @@ from pyspark.sql.functions import (
     current_timestamp,
     lit
 )
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+
+catalog = get_catalog()
 
 # =====================================================
 # CONFIG
@@ -80,7 +86,7 @@ def get_pipeline_start_ts():
 
 def get_last_pipeline_start_ts():
     """Use the last completed pipeline start as the EIA API watermark."""
-    audit_table = "energy.audit.pipeline_lineage"
+    audit_table = f"{catalog}.audit.pipeline_lineage"
     if not spark.catalog.tableExists(audit_table):
         return None
 

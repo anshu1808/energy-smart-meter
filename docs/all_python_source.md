@@ -14,7 +14,6 @@ This document contains the complete Python source currently present under src/. 
 - [src/bronze/ingest_meter_events.py](#src-bronze-ingest_meter_eventspy)
 - [src/bronze/schema_drift.py](#src-bronze-schema_driftpy)
 - [src/config/config.py](#src-config-configpy)
-- [src/gold/data_quality.py](#src-gold-data_qualitypy)
 - [src/gold/gold_peak_load.py](#src-gold-gold_peak_loadpy)
 - [src/gold/gold_revenue_summary.py](#src-gold-gold_revenue_summarypy)
 - [src/gold/gold_theft_detection.py](#src-gold-gold_theft_detectionpy)
@@ -811,20 +810,16 @@ if not spark.catalog.tableExists(TARGET_TABLE):
         .option("mergeSchema", "true")
         .saveAsTable(TARGET_TABLE)
     )
-    print(f"Initial load complete for {TARGET_TABLE}")
+    print(f"âœ… Initial load complete for {TARGET_TABLE}")
 else:
-    target = DeltaTable.forName(spark, TARGET_TABLE)
     (
-        target.alias("t")
-        .merge(
-            feeder_readings.alias("s"),
-            "t.feeder_id = s.feeder_id AND t.DateTime = s.DateTime",
-        )
-        .whenMatchedUpdateAll()
-        .whenNotMatchedInsertAll()
-        .execute()
+        feeder_readings.write
+        .format("delta")
+        .mode("append")
+        .option("mergeSchema", "true")
+        .saveAsTable(TARGET_TABLE)
     )
-    print(f"Merged records into {TARGET_TABLE}")
+    print(f"âœ… Appended records into {TARGET_TABLE}")
 
 print(f"Rows processed: {feeder_readings.count()}")
 ```
@@ -863,7 +858,7 @@ raw_meters = (
 
 raw_events = (
     raw_meters
-    #.withColumn("event_multiplier", expr("explode(array(1, 2, 3))"))
+    .withColumn("event_multiplier", expr("explode(array(1, 2, 3))"))
     .withColumn("event_probability", rand(seed=42))
     .filter(col("event_probability") < 0.05)  # Generate low-frequency events (~5% chance per meter)
     .withColumn("event_type", expr("""
@@ -931,15 +926,12 @@ if not spark.catalog.tableExists(TARGET_TABLE):
     )
     print(f"âœ… Initial {TARGET_TABLE} load complete.")
 else:
-    target = DeltaTable.forName(spark, TARGET_TABLE)
     (
-        target.alias("t")
-        .merge(
-            raw_events.alias("s"),
-            "t.LCLid = s.LCLid AND t.event_timestamp = s.event_timestamp",
-        )
-        .whenNotMatchedInsertAll()
-        .execute()
+        raw_events.write
+        .format("delta")
+        .mode("append")
+        .option("mergeSchema", "true")
+        .saveAsTable(TARGET_TABLE)
     )
     print(f"âœ… Successfully appended raw events into {TARGET_TABLE}.")
 
@@ -1022,184 +1014,6 @@ def get_eia_api_key() -> str:
 #EIA_API_KEY = os.getenv("EIA_API_KEY", "")
 ```
 
-## src/gold/data_quality.py
-
-```python
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, lit, current_timestamp
-from pyspark.sql.types import (
-    StructType, StructField, StringType, LongType, TimestampType
-)
-
-DQ_FAILURE_TABLE = "energy.silver.dq_failures"
-
-
-def _log_dq_failures(spark, table_name, failure_details):
-    """Write DQ failure records to the DQ failure tracking table."""
-    schema = StructType([
-        StructField("dq_table", StringType(), False),
-        StructField("check_name", StringType(), False),
-        StructField("check_type", StringType(), False),
-        StructField("column_name", StringType(), True),
-        StructField("failure_reason", StringType(), False),
-        StructField("failed_value", LongType(), False),
-    ])
-
-    records = [
-        (
-            table_name,
-            d["check_name"],
-            d["check_type"],
-            d["column_name"],
-            d["failure_reason"],
-            d["failed_value"],
-        )
-        for d in failure_details
-    ]
-
-    failure_df = spark.createDataFrame(records, schema)
-    failure_df = failure_df.withColumn("check_ts", current_timestamp())
-
-    if not spark.catalog.tableExists(DQ_FAILURE_TABLE):
-        (
-            failure_df.write
-            .format("delta")
-            .option("mergeSchema", "true")
-            .saveAsTable(DQ_FAILURE_TABLE)
-        )
-    else:
-        (
-            failure_df.write
-            .format("delta")
-            .mode("append")
-            .saveAsTable(DQ_FAILURE_TABLE)
-        )
-
-
-def validate_data_quality(
-    spark: SparkSession,
-    dataframe: DataFrame,
-    table_name: str,
-    checks: list,
-    fail_on_error: bool = False,
-) -> DataFrame:
-    """Run data quality checks on a DataFrame and add metadata columns.
-
-    When any check fails, the failure details (table name, check name, check
-    type, column name, failure reason, failed value count, and timestamp)
-    are written to the energy.silver.dq_failures table.
-
-    Args:
-        spark: SparkSession
-        dataframe: DataFrame to validate
-        table_name: Name of the target table (for logging)
-        checks: List of dicts with keys:
-            - name: str (check name)
-            - check_type: str ("not_null", "unique", "range", "not_empty")
-            - column: str (column to check; for "unique" can be a single column)
-            - columns: list (for multi-column "unique" check)
-            - min_val: numeric (optional, for "range" check)
-            - max_val: numeric (optional, for "range" check)
-        fail_on_error: If True, raise RuntimeError when any check fails.
-
-    Returns:
-        DataFrame with dq_passed and dq_failed_checks columns added.
-    """
-    total_rows = dataframe.count()
-    failed_checks = []
-    failure_details = []
-
-    for check in checks:
-        check_name = check["name"]
-        check_type = check["check_type"]
-
-        if check_type == "not_null":
-            column = check["column"]
-            null_count = dataframe.filter(col(column).isNull()).count()
-            if null_count > 0:
-                reason = f"{null_count} nulls in {column}"
-                failed_checks.append(f"{check_name}: {reason}")
-                failure_details.append({
-                    "check_name": check_name,
-                    "check_type": check_type,
-                    "column_name": column,
-                    "failure_reason": reason,
-                    "failed_value": null_count,
-                })
-
-        elif check_type == "unique":
-            columns = check.get("columns") or [check["column"]]
-            dup_count = total_rows - dataframe.dropDuplicates(columns).count()
-            if dup_count > 0:
-                reason = f"{dup_count} duplicates on {columns}"
-                failed_checks.append(f"{check_name}: {reason}")
-                failure_details.append({
-                    "check_name": check_name,
-                    "check_type": check_type,
-                    "column_name": ", ".join(str(c) for c in columns),
-                    "failure_reason": reason,
-                    "failed_value": dup_count,
-                })
-
-        elif check_type == "range":
-            column = check["column"]
-            min_val = check.get("min_val")
-            max_val = check.get("max_val")
-            conditions = []
-            if min_val is not None:
-                conditions.append(col(column) < min_val)
-            if max_val is not None:
-                conditions.append(col(column) > max_val)
-            if conditions:
-                range_filter = conditions[0]
-                for c in conditions[1:]:
-                    range_filter = range_filter | c
-                range_filter = range_filter & col(column).isNotNull()
-                out_of_range = dataframe.filter(range_filter).count()
-                if out_of_range > 0:
-                    reason = f"{out_of_range} out-of-range values in {column}"
-                    failed_checks.append(f"{check_name}: {reason}")
-                    failure_details.append({
-                        "check_name": check_name,
-                        "check_type": check_type,
-                        "column_name": column,
-                        "failure_reason": reason,
-                        "failed_value": out_of_range,
-                    })
-
-        elif check_type == "not_empty":
-            if total_rows == 0:
-                reason = "0 rows in dataframe"
-                failed_checks.append(f"{check_name}: {reason}")
-                failure_details.append({
-                    "check_name": check_name,
-                    "check_type": check_type,
-                    "column_name": "",
-                    "failure_reason": reason,
-                    "failed_value": 0,
-                })
-
-    if failure_details:
-        _log_dq_failures(spark, table_name, failure_details)
-
-    dq_summary = "; ".join(failed_checks)
-    status = "PASSED" if not failed_checks else "FAILED"
-    print(f"[DQ] {table_name}: {status}")
-    if failed_checks:
-        print(f"[DQ] {table_name}: {dq_summary}")
-
-    if fail_on_error and failed_checks:
-        raise RuntimeError(
-            f"Data quality checks failed for {table_name}: {dq_summary}"
-        )
-
-    return (
-        dataframe
-        .withColumn("dq_passed", lit(len(failed_checks) == 0))
-        .withColumn("dq_failed_checks", lit(dq_summary))
-    )
-```
-
 ## src/gold/gold_peak_load.py
 
 ```python
@@ -1208,21 +1022,11 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, count, current_timestamp, date_format
 from pyspark.sql.functions import max as spark_max
 from pyspark.sql.functions import sum as spark_sum
-from delta.tables import DeltaTable
-from data_quality import validate_data_quality
-#from schema_drift import add_schema_drift_metadata
 
 spark = SparkSession.builder.getOrCreate()
-#spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
 
 TARGET_TABLE = "energy.gold.gold_peak_load"
-
-# =====================================================
-# SOURCE TABLES
-# =====================================================
-
 fact_consumption = spark.table("energy.silver.fact_consumption")
-
 
 gold_df = (
 	fact_consumption
@@ -1238,34 +1042,8 @@ gold_df = (
 	.withColumn("load_ts", current_timestamp())
 )
 
-# ==========================================
-# DATA QUALITY
-# ==========================================
-
-gold_df = validate_data_quality(
-	spark,
-	gold_df,
-	TARGET_TABLE,
-	[
-		{"name": "peak_load_not_empty", "check_type": "not_empty"},
-		{"name": "date_key_not_null", "check_type": "not_null", "column": "date_key"},
-		{"name": "hour_of_day_not_null", "check_type": "not_null", "column": "hour_of_day"},
-		{"name": "peak_load_key_unique", "check_type": "unique", "columns": ["date_key", "hour_of_day"]},
-		{"name": "total_consumption_non_negative", "check_type": "range", "column": "total_consumption_kwh", "min_val": 0},
-	],
-)
-
-# ==========================================
-# INITIAL LOAD
-# ==========================================
-
 if not spark.catalog.tableExists(TARGET_TABLE):
 	gold_df.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE)
-
-# ==========================================
-# INCREMENTAL MERGE
-# ==========================================
-
 else:
 	(
 		DeltaTable.forName(spark, TARGET_TABLE)
@@ -1289,10 +1067,8 @@ from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, countDistinct, current_timestamp
 from pyspark.sql.functions import sum as spark_sum
-from data_quality import validate_data_quality
 
 spark = SparkSession.builder.getOrCreate()
-#spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
 
 TARGET_TABLE = "energy.gold.gold_revenue_summary"
 fact_billing = spark.table("energy.silver.fact_billing")
@@ -1309,23 +1085,6 @@ gold_df = (
         avg("bill_amount").alias("avg_bill_amount"),
     )
     .withColumn("load_ts", current_timestamp())
-)
-
-# ==========================================
-# DATA QUALITY
-# ==========================================
-
-gold_df = validate_data_quality(
-    spark,
-    gold_df,
-    TARGET_TABLE,
-    [
-        {"name": "revenue_summary_not_empty", "check_type": "not_empty"},
-        {"name": "billing_period_not_null", "check_type": "not_null", "column": "billing_period"},
-        {"name": "billing_period_unique", "check_type": "unique", "column": "billing_period"},
-        {"name": "total_consumption_non_negative", "check_type": "range", "column": "total_consumption_kwh", "min_val": 0},
-        {"name": "total_revenue_non_negative", "check_type": "range", "column": "total_revenue", "min_val": 0},
-    ],
 )
 
 if not spark.catalog.tableExists(TARGET_TABLE):
@@ -1353,10 +1112,9 @@ from pyspark.sql.functions import round as spark_round
 from pyspark.sql.functions import stddev_pop
 from pyspark.sql.functions import sum as spark_sum
 from pyspark.sql.functions import when
-from data_quality import validate_data_quality
 
 spark = SparkSession.builder.getOrCreate()
-#
+
 TARGET_TABLE = "energy.gold.gold_theft_detection"
 consumption = spark.table("energy.silver.fact_consumption")
 customers = spark.table("energy.silver.dim_customer")
@@ -1401,23 +1159,6 @@ gold_df = (
 	.withColumn("load_ts", current_timestamp())
 )
 
-# ==========================================
-# DATA QUALITY
-# ==========================================
-
-gold_df = validate_data_quality(
-	spark,
-	gold_df,
-	TARGET_TABLE,
-	[
-		{"name": "theft_detection_not_empty", "check_type": "not_empty"},
-		{"name": "billing_period_not_null", "check_type": "not_null", "column": "billing_period"},
-		{"name": "lclid_not_null", "check_type": "not_null", "column": "LCLid"},
-		{"name": "theft_detection_key_unique", "check_type": "unique", "columns": ["billing_period", "LCLid"]},
-		{"name": "consumption_non_negative", "check_type": "range", "column": "consumption_kwh", "min_val": 0},
-	],
-)
-
 if not spark.catalog.tableExists(TARGET_TABLE):
 	gold_df.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE)
 else:
@@ -1443,10 +1184,8 @@ from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, col, current_timestamp, hour
 from pyspark.sql.functions import sum as spark_sum
-from data_quality import validate_data_quality
 
 spark = SparkSession.builder.getOrCreate()
-spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
 
 TARGET_TABLE = "energy.gold.gold_weather_impact"
 consumption = spark.table("energy.silver.fact_consumption")
@@ -1479,25 +1218,6 @@ gold_df = (
 	weather_hourly
 	.join(consumption_hourly, ["date_key", "hour_of_day"], "left")
 	.withColumn("load_ts", current_timestamp())
-)
-
-# ==========================================
-# DATA QUALITY
-# ==========================================
-
-gold_df = validate_data_quality(
-	spark,
-	gold_df,
-	TARGET_TABLE,
-	[
-		{"name": "weather_impact_not_empty", "check_type": "not_empty"},
-		{"name": "date_key_not_null", "check_type": "not_null", "column": "date_key"},
-		{"name": "hour_of_day_not_null", "check_type": "not_null", "column": "hour_of_day"},
-		{"name": "weather_impact_key_unique", "check_type": "unique", "columns": ["date_key", "hour_of_day"]},
-		{"name": "temperature_range", "check_type": "range", "column": "temperature_c", "min_val": -50, "max_val": 60},
-		{"name": "humidity_range", "check_type": "range", "column": "humidity_pct", "min_val": 0, "max_val": 100},
-		{"name": "precipitation_non_negative", "check_type": "range", "column": "precipitation_mm", "min_val": 0},
-	],
 )
 
 if not spark.catalog.tableExists(TARGET_TABLE):
@@ -2106,10 +1826,10 @@ dim_customer = existing_customers.unionByName(new_customers).withColumn(
     concat(lit("CUST"), lpad(col("customer_key").cast("string"), 6, "0"))
 ).withColumn(
     "customer_type", col("stdorToU")          # keep raw Std/ToU â€” see Fix 2
-).withColumn(
-    "tariff_id",
-    when(col("customer_type") == "Std", lit("TAR001"))
-    .otherwise(lit("TAR002"))  # ToU customers get Low tariff
+).withColumn("tariff_id",
+   when(col("stdorToU").isNull(), lit("TAR001"))
+   .when(col("stdorToU") == "Std", lit("TAR001"))
+   .otherwise(lit("TAR002"))
 ).withColumn("status", lit("ACTIVE")) \
  .withColumn("region", lit("LONDON")) \
  .withColumn("load_ts", current_timestamp())
@@ -2137,7 +1857,6 @@ dim_customer = dim_customer.select(
     "customer_key",
     "customer_id",
     "LCLid",
-    "customer_type",
     "tariff_id",
     "status",
     "region",
@@ -2495,7 +2214,7 @@ window_spec = Window.orderBy("LCLid")
 
 dim_meter = (
     meter_df
-    .select("LCLid", "stdorToU","DateTime","kwh_hh")
+    .select("LCLid")
     .dropDuplicates(["LCLid"])
     .withColumn(
         "meter_key",
@@ -2546,9 +2265,6 @@ dim_meter = dim_meter.select(
     "meter_key",
     "meter_id",
     "LCLid",
-    "stdorToU",
-    "DateTime",
-    "kwh_hh",
     "meter_type",
     "manufacturer",
     "status",
@@ -2626,162 +2342,6 @@ print(
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
-    lit,
-    row_number,
-    when,
-    current_timestamp,to_timestamp,
-)
-from pyspark.sql.window import Window
-from delta.tables import DeltaTable
-from data_quality import validate_data_quality
-from schema_drift import add_schema_drift_metadata
-
-spark = SparkSession.builder.getOrCreate()
-
-TARGET_TABLE = "energy.silver.dim_tariff"
-
-# =====================================================
-# SOURCE - derive tariff dimension from bronze_tariff
-# =====================================================
-
-bronze_tariff = spark.table(
-    "energy.bronze.bronze_tariff"
-)
-
-# =====================================================
-# DIM TARIFF
-# =====================================================
-
-dim_tariff = (
-    bronze_tariff
-    .select("Tariff","TariffDateTime")
-    .filter(col("Tariff").isNotNull())
-    .dropDuplicates(["Tariff"])
-    .withColumn(
-        "tariff_id",
-        when(col("Tariff") == "Normal", lit("TAR001"))
-        .when(col("Tariff") == "Low", lit("TAR002"))
-        .when(col("Tariff") == "High", lit("TAR003"))
-        .otherwise(lit("TAR000"))
-    )
-    .withColumn("tariff_name", col("Tariff"))
-    .withColumn(
-        "tariff_description",
-        when(col("Tariff") == "Normal", lit("Standard rate tariff"))
-        .when(col("Tariff") == "Low", lit("Off-peak low rate tariff"))
-        .when(col("Tariff") == "High", lit("Peak high rate tariff"))
-        .otherwise(lit("Unknown tariff type"))
-    )
-    .withColumn(
-        "rate_per_kwh",
-        when(col("Tariff") == "Normal", lit(0.15))
-        .when(col("Tariff") == "Low", lit(0.08))
-        .when(col("Tariff") == "High", lit(0.25))
-        .otherwise(lit(0.0))
-    )
-    .withColumn("status", lit("ACTIVE"))
-    .withColumn("region", lit("LONDON"))
-    .withColumn("load_ts", current_timestamp())
-    .withColumn("tariff_half_hour", to_timestamp(col("TariffDateTime")))
-    .dropDuplicates(["tariff_half_hour"])
-)
-
-# =====================================================
-# FINAL COLUMNS
-# =====================================================
-
-dim_tariff = (
-    dim_tariff
-    .withColumn("tariff_key", 
-        when(col("tariff_id") == "TAR001", lit(1))
-        .when(col("tariff_id") == "TAR002", lit(2))
-        .when(col("tariff_id") == "TAR003", lit(3))
-        .otherwise(lit(0))
-    )
-    .select(
-        "tariff_key",
-        "tariff_id",
-        "tariff_name",
-        "tariff_description",
-        "rate_per_kwh",
-        "status",
-        "region",
-        "load_ts",
-        "tariff_half_hour",
-    )
-)
-
-# =====================================================
-# DATA QUALITY
-# =====================================================
-
-dim_tariff = validate_data_quality(
-    spark,
-    dim_tariff,
-    TARGET_TABLE,
-    [
-        {"name": "tariff_key_not_null", "check_type": "not_null", "column": "tariff_key"},
-        {"name": "tariff_id_not_null", "check_type": "not_null", "column": "tariff_id"},
-        {"name": "tariff_name_not_null", "check_type": "not_null", "column": "tariff_name"},
-        {"name": "tariff_key_unique", "check_type": "unique", "column": "tariff_key"},
-        {"name": "tariff_id_unique", "check_type": "unique", "column": "tariff_id"},
-    ],
-)
-
-dim_tariff = add_schema_drift_metadata(
-    spark, dim_tariff, TARGET_TABLE
-)
-
-# =====================================================
-# INITIAL LOAD
-# =====================================================
-
-if not spark.catalog.tableExists(TARGET_TABLE):
-
-    (
-        dim_tariff.write
-        .format("delta")
-        .option("mergeSchema", "true")
-        .saveAsTable(TARGET_TABLE)
-    )
-
-    print("Initial dim_tariff load complete")
-
-# =====================================================
-# INCREMENTAL MERGE
-# =====================================================
-
-else:
-
-    target = DeltaTable.forName(
-        spark,
-        TARGET_TABLE
-    )
-
-    (
-        target.alias("t")
-        .merge(
-            dim_tariff.alias("s"),
-            "t.tariff_id = s.tariff_id"
-        )
-        .whenMatchedUpdateAll()
-        .whenNotMatchedInsertAll()
-        .execute()
-    )
-
-    print("dim_tariff merged successfully")
-
-print(
-    f"dim_tariff rows: {dim_tariff.count()}"
-)
-```
-
-## src/silver/fact_billing.py
-
-```python
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col,
     sum as spark_sum,
     date_format,
     current_timestamp,
@@ -2790,7 +2350,7 @@ from pyspark.sql.functions import (
     lpad,
     monotonically_increasing_id,
     when,
-    expr,date_trunc,
+    expr
 )
 
 #from silver import dim_tariff
@@ -2835,79 +2395,579 @@ readings = (consumption_df
 )
 
 # =====================================================
-# ATTACH TARIFF RATE FOR THE HALF-HOUR (ToU only)
+# CUSTOMER + METER MAPPING
 # =====================================================
 
-readings = readings.withColumn(
-    "reading_half_hour", date_trunc("minute", col("reading_timestamp"))
-)
-
-readings = readings.join(
-    tariff_df.select(
-        col("tariff_half_hour"),
-        col("tariff_key"),
-        col("tariff_id"),
-        col("rate_per_kwh").alias("schedule_rate_per_kwh"),
-    ),
-    readings.reading_half_hour == tariff_df.tariff_half_hour,
-    "left",
+customer_meter = (
+    customer_df.alias("c")
+    .join(
+        meter_df.alias("m"),
+        "LCLid",
+        "inner"
+    )
 )
 
 # =====================================================
-# APPLY RATE: FLAT FOR Std, SCHEDULE FOR ToU
+# CLEAN METER READINGS
 # =====================================================
 
-readings = (
-    readings
+meter_readings = (
+    meter_readings
     .withColumn(
-        "applied_rate_per_kwh",
-        when(col("customer_type") == "Std", lit(STANDARD_FLAT_RATE))
-        .otherwise(col("schedule_rate_per_kwh")),
+        "consumption_kwh",
+        expr(
+            "try_cast(`kwh_hh` as double)"
+        )
     )
+    .filter(col("consumption_kwh").isNotNull())
+    .filter(col("LCLid").isNotNull())
+)
+
+# =====================================================
+# BILLING PERIOD
+# =====================================================
+
+meter_readings = (
+    meter_readings
     .withColumn(
-        "applied_tariff_key",
-        when(col("customer_type") == "Std", lit(None).cast("int"))
-        .otherwise(col("tariff_key")),
+        "billing_period",
+        date_format(
+            col("DateTime"),
+            "yyyy-MM"
+        )
     )
-    .withColumn(
-        "applied_tariff_id",
-        when(col("customer_type") == "Std", lit("FLAT"))
-        .otherwise(col("tariff_id")),
-    )
-    .withColumn("half_hour_cost", col("consumption_kwh") * col("applied_rate_per_kwh"))
-    .withColumn("billing_period", date_format(col("reading_timestamp"), "yyyy-MM"))
 )
 
 # =====================================================
 # MONTHLY AGGREGATION
 # =====================================================
 
-billing = (
-    readings
-    .groupBy("customer_key", "meter_key", "customer_id", "meter_id", "billing_period")
+billing_base = (
+    meter_readings
+    .groupBy(
+        "LCLid",
+        "billing_period"
+    )
     .agg(
-        spark_sum("consumption_kwh").alias("consumption_kwh"),
-        spark_sum("half_hour_cost").alias("bill_amount"),
+        spark_sum(
+            "consumption_kwh"
+        ).alias(
+            "consumption_kwh"
+        )
     )
 )
 
 # =====================================================
-# BUSINESS KEYS + AUDIT
+# JOIN CUSTOMER/METER
+# =====================================================
+
+billing = (
+    billing_base
+    .join(
+        customer_df.select(
+            "customer_key",
+            "customer_id",
+            "LCLid",
+            "tariff_id",
+            "region"
+        ),
+        "LCLid",
+        "left"
+    )
+    .join(
+        meter_df.select(
+            "meter_key",
+            "meter_id",
+            "LCLid"
+        ),
+        "LCLid",
+        "left"
+    )
+)
+'''
+# =====================================================
+# METER JOIN
+# =====================================================
+
+billing = (
+    billing
+    .join(
+        dim_meter.select(
+            "meter_key",
+            "meter_id",
+            "LCLid"
+        ),
+        "LCLid",
+        "left"
+    )
+)
+'''
+
+# =====================================================
+# TARIFF JOIN
+# =====================================================
+
+billing = (
+    billing
+    .join(
+        tariff_df.select(
+            "tariff_key",
+            "tariff_id",
+            "tariff_name",
+            "rate_per_kwh"
+        ),
+        "tariff_id",
+        "left"
+    )
+)
+
+# =====================================================
+# TEMPORARY TARIFF LOGIC
+# =====================================================
+# Replace later using dim_tariff /
+# tariff schedule table
+
+billing = (
+    billing
+    .withColumn(
+        "rate_per_kwh",
+        when(
+            col("tariff_id") == "TAR002",
+            lit(0.18)
+        ).otherwise(
+            lit(0.15)
+        )
+    )
+)
+
+# =====================================================
+# BILL AMOUNT
+# =====================================================
+
+billing = (
+    billing
+    .withColumn(
+        "bill_amount",
+        (
+            col("consumption_kwh")
+            * col("rate_per_kwh")
+        )
+    )
+)
+
+# =====================================================
+# BILL BUSINESS KEY
 # =====================================================
 
 billing = (
     billing
     .withColumn(
         "billing_business_key",
-        concat(col("customer_id"), lit("_"), col("meter_id"), lit("_"), col("billing_period")),
+        concat(
+            col("customer_id"),
+            lit("_"),
+            col("meter_id"),
+            lit("_"),
+            col("billing_period")
+        )
     )
+)
+
+# =====================================================
+# BILL ID
+# =====================================================
+
+billing = (
+    billing
     .withColumn(
         "bill_id",
-        concat(lit("BILL"), col("customer_id"), lit("_"), col("billing_period")),
+        concat(
+            lit("BILL"),
+            col("customer_id"),
+            lit("_"),
+            col("billing_period")
+        )
     )
-    .withColumn("billing_status", lit("CALCULATED"))
-    .withColumn("load_ts", current_timestamp())
-    .withColumn("source_system", lit("BILLING_ENGINE"))
+)
+
+# =====================================================
+# AUDIT COLUMNS
+# =====================================================
+
+billing = (
+    billing
+    .withColumn(
+        "billing_status",
+        lit("CALCULATED")
+    )
+    .withColumn(
+        "load_ts",
+        current_timestamp()
+    )
+    .withColumn(
+        "source_system",
+        lit("BILLING_ENGINE")
+    )
+)
+
+# =====================================================
+# FINAL COLUMNS
+# =====================================================
+
+billing = billing.select(
+    "billing_business_key",
+    "bill_id",
+    "customer_key",
+    "meter_key",
+    "tariff_key",
+    "tariff_id",
+    "customer_id",
+    "meter_id",
+    "billing_period",
+    "consumption_kwh",
+    "rate_per_kwh",
+    "bill_amount",
+    "billing_status",
+    "region",
+    "load_ts",
+    "source_system"
+)
+
+billing = validate_data_quality(
+    spark,
+    billing,
+    "energy.silver.fact_billing",
+    [
+        {"name": "billing_business_key_not_null", "check_type": "not_null", "column": "billing_business_key"},
+        {"name": "bill_id_not_null", "check_type": "not_null", "column": "bill_id"},
+        {"name": "consumption_non_negative", "check_type": "range", "column": "consumption_kwh", "min_val": 0},
+        {"name": "bill_amount_non_negative", "check_type": "range", "column": "bill_amount", "min_val": 0},
+        {"name": "billing_business_key_unique", "check_type": "unique", "column": "billing_business_key"},
+    ],
+)
+
+billing = add_schema_drift_metadata(
+    spark, billing, "energy.silver.fact_billing"
+)
+
+billing = billing.dropDuplicates(["billing_business_key"])
+
+
+# =====================================================
+# SILVER FACT BILLING
+# =====================================================
+
+from delta.tables import DeltaTable
+
+TARGET_TABLE = "energy.silver.fact_billing"
+
+if not spark.catalog.tableExists(TARGET_TABLE):
+
+    (
+        billing.write
+        .format("delta")
+        .option("mergeSchema", "true")
+        .saveAsTable(TARGET_TABLE)
+    )
+
+else:
+
+    target = DeltaTable.forName(
+        spark,
+        TARGET_TABLE
+    )
+
+    (
+        target.alias("t")
+        .merge(
+            billing.alias("s"),
+            """
+            t.billing_business_key =
+            s.billing_business_key
+            """
+        )
+        .whenMatchedUpdateAll()
+        .whenNotMatchedInsertAll()
+        .execute()
+    )
+
+print(
+    f"Silver fact_billing created: {billing.count()}"
+)
+```
+
+## src/silver/fact_billing.py
+
+```python
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import (
+    col,
+    sum as spark_sum,
+    date_format,
+    current_timestamp,
+    lit,
+    concat,
+    lpad,
+    monotonically_increasing_id,
+    when,
+    expr
+)
+
+#from silver import dim_tariff
+from data_quality import validate_data_quality
+from schema_drift import add_schema_drift_metadata
+
+spark = SparkSession.builder.getOrCreate()
+
+STANDARD_FLAT_RATE = 0.15  # confirm actual Std-tariff policy rate
+
+# =====================================================
+# READ BRONZE TABLES
+# =====================================================
+
+customer_df = spark.table("energy.silver.dim_customer")
+meter_df = spark.table("energy.silver.dim_meter")
+tariff_df = spark.table("energy.silver.dim_tariff")
+date_df = spark.table("energy.silver.dim_date")
+meter_readings = spark.table("energy.bronze.bronze_meter_readings")
+consumption_df = spark.table("energy.silver.fact_consumption")
+
+readings = (consumption_df
+    .join(
+        customer_df.select(
+            "customer_key",
+            "customer_id",
+            "LCLid",
+            "tariff_id"
+        ),
+        "customer_key",
+        "left",
+    )
+    .join(
+        meter_df.select(
+            "meter_key",
+            "meter_id",
+            "LCLid"
+        ),
+        "meter_key",
+        "left",
+    )
+)
+
+# =====================================================
+# CUSTOMER + METER MAPPING
+# =====================================================
+
+customer_meter = (
+    customer_df.alias("c")
+    .join(
+        meter_df.alias("m"),
+        "LCLid",
+        "inner"
+    )
+)
+
+# =====================================================
+# CLEAN METER READINGS
+# =====================================================
+
+meter_readings = (
+    meter_readings
+    .withColumn(
+        "consumption_kwh",
+        expr(
+            "try_cast(`kwh_hh` as double)"
+        )
+    )
+    .filter(col("consumption_kwh").isNotNull())
+    .filter(col("LCLid").isNotNull())
+)
+
+# =====================================================
+# BILLING PERIOD
+# =====================================================
+
+meter_readings = (
+    meter_readings
+    .withColumn(
+        "billing_period",
+        date_format(
+            col("DateTime"),
+            "yyyy-MM"
+        )
+    )
+)
+
+# =====================================================
+# MONTHLY AGGREGATION
+# =====================================================
+
+billing_base = (
+    meter_readings
+    .groupBy(
+        "LCLid",
+        "billing_period"
+    )
+    .agg(
+        spark_sum(
+            "consumption_kwh"
+        ).alias(
+            "consumption_kwh"
+        )
+    )
+)
+
+# =====================================================
+# JOIN CUSTOMER/METER
+# =====================================================
+
+billing = (
+    billing_base
+    .join(
+        customer_df.select(
+            "customer_key",
+            "customer_id",
+            "LCLid",
+            "tariff_id",
+            "region"
+        ),
+        "LCLid",
+        "left"
+    )
+    .join(
+        meter_df.select(
+            "meter_key",
+            "meter_id",
+            "LCLid"
+        ),
+        "LCLid",
+        "left"
+    )
+)
+'''
+# =====================================================
+# METER JOIN
+# =====================================================
+
+billing = (
+    billing
+    .join(
+        dim_meter.select(
+            "meter_key",
+            "meter_id",
+            "LCLid"
+        ),
+        "LCLid",
+        "left"
+    )
+)
+'''
+
+# =====================================================
+# TARIFF JOIN
+# =====================================================
+
+billing = (
+    billing
+    .join(
+        tariff_df.select(
+            "tariff_key",
+            "tariff_id",
+            "tariff_name",
+            "rate_per_kwh"
+        ),
+        "tariff_id",
+        "left"
+    )
+)
+
+# =====================================================
+# TEMPORARY TARIFF LOGIC
+# =====================================================
+# Replace later using dim_tariff /
+# tariff schedule table
+
+billing = (
+    billing
+    .withColumn(
+        "rate_per_kwh",
+        when(
+            col("tariff_id") == "TAR002",
+            lit(0.18)
+        ).otherwise(
+            lit(0.15)
+        )
+    )
+)
+
+# =====================================================
+# BILL AMOUNT
+# =====================================================
+
+billing = (
+    billing
+    .withColumn(
+        "bill_amount",
+        (
+            col("consumption_kwh")
+            * col("rate_per_kwh")
+        )
+    )
+)
+
+# =====================================================
+# BILL BUSINESS KEY
+# =====================================================
+
+billing = (
+    billing
+    .withColumn(
+        "billing_business_key",
+        concat(
+            col("customer_id"),
+            lit("_"),
+            col("meter_id"),
+            lit("_"),
+            col("billing_period")
+        )
+    )
+)
+
+# =====================================================
+# BILL ID
+# =====================================================
+
+billing = (
+    billing
+    .withColumn(
+        "bill_id",
+        concat(
+            lit("BILL"),
+            col("customer_id"),
+            lit("_"),
+            col("billing_period")
+        )
+    )
+)
+
+# =====================================================
+# AUDIT COLUMNS
+# =====================================================
+
+billing = (
+    billing
+    .withColumn(
+        "billing_status",
+        lit("CALCULATED")
+    )
+    .withColumn(
+        "load_ts",
+        current_timestamp()
+    )
+    .withColumn(
+        "source_system",
+        lit("BILLING_ENGINE")
+    )
 )
 
 # =====================================================
@@ -3517,7 +3577,7 @@ if not spark.catalog.tableExists(TARGET_TABLE):
     print(f"âœ… Initial load complete for {TARGET_TABLE}")
 else:
     target = DeltaTable.forName(spark, TARGET_TABLE)
-    
+  
     (
         target.alias("t")
         .merge(
@@ -3662,7 +3722,7 @@ if not spark.catalog.tableExists(TARGET_TABLE):
     print(f"âœ… Initial load complete for {TARGET_TABLE}")
 else:
     target = DeltaTable.forName(spark, TARGET_TABLE)
-    
+  
     (
         target.alias("t")
         .merge(
@@ -3887,4 +3947,3 @@ def add_schema_drift_metadata(
         .withColumn("schema_drift_columns", lit(drift_summary))
     )
 ```
-
