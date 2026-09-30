@@ -1,13 +1,9 @@
 import sys
 from pathlib import Path
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    current_timestamp,
-    lit,
-    col
-)
 from delta.tables import DeltaTable
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import current_timestamp, lit
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
@@ -23,13 +19,7 @@ TARGET_TABLE = f"{catalog}.bronze.bronze_meter_readings"
 # READ RAW SOURCE
 # ==========================================
 
-meter_df = (
-    spark.read
-    .option("header", True)
-    .csv(
-        "/Volumes/energy/bronze/raw/meter_readings/*.csv"
-    )
-)
+meter_df = spark.read.option("header", True).csv("/Volumes/energy/bronze/raw/meter_readings/*.csv")
 
 meter_df = meter_df.withColumnRenamed("KWH/hh (per half hour) ", "kwh_hh")
 
@@ -37,27 +27,13 @@ meter_df = meter_df.withColumnRenamed("KWH/hh (per half hour) ", "kwh_hh")
 # AUDIT COLUMNS
 # ==========================================
 
-meter_df = (
-    meter_df
-    .withColumn(
-        "load_ts",
-        current_timestamp()
-    )
-    .withColumn(
-        "source_system",
-        lit("LONDON_SMART_METER")
-    )
-)
+meter_df = meter_df.withColumn("load_ts", current_timestamp()).withColumn("source_system", lit("LONDON_SMART_METER"))
 
 # ==========================================
 # SCHEMA DRIFT
 # ==========================================
 
-meter_df = add_schema_drift_metadata(
-    spark,
-    meter_df,
-    TARGET_TABLE
-)
+meter_df = add_schema_drift_metadata(spark, meter_df, TARGET_TABLE)
 
 # ==========================================
 # DATA QUALITY
@@ -83,12 +59,7 @@ meter_df = validate_data_quality(
 
 if not spark.catalog.tableExists(TARGET_TABLE):
 
-    (
-        meter_df.write
-        .format("delta")
-        .option("mergeSchema", "true")
-        .saveAsTable(TARGET_TABLE)
-    )
+    (meter_df.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial bronze_meter_readings load complete")
 
@@ -98,10 +69,7 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 
 else:
 
-    target = DeltaTable.forName(
-        spark,
-        TARGET_TABLE
-    )
+    target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (
         target.alias("t")
@@ -110,7 +78,7 @@ else:
             """
             t.LCLid = s.LCLid
             AND t.DateTime = s.DateTime
-            """
+            """,
         )
         .whenMatchedUpdateAll()
         .whenNotMatchedInsertAll()
@@ -119,6 +87,4 @@ else:
 
     print("bronze_meter_readings merged successfully")
 
-print(
-    f"Rows processed: {meter_df.count()}"
-)
+print(f"Rows processed: {meter_df.count()}")

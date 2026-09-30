@@ -1,17 +1,9 @@
 import sys
 from pathlib import Path
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col,
-    to_timestamp,
-    trim,
-    upper,
-    when,
-    current_timestamp,
-    date_format
-)
 from delta.tables import DeltaTable
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, current_timestamp, date_format, to_timestamp, trim, upper, when
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
@@ -39,25 +31,19 @@ if "dq_passed" in bronze_df.columns:
 # ==========================================
 
 silver_events = (
-    bronze_df
-    .select(
+    bronze_df.select(
         trim(col("event_id")).alias("event_id"),
         trim(col("LCLid")).alias("LCLid"),
         upper(trim(col("event_type"))).alias("event_type"),
         upper(trim(col("severity"))).alias("severity"),
         to_timestamp(col("event_timestamp")).alias("event_timestamp"),
-        trim(col("source_system")).alias("source_system")
+        trim(col("source_system")).alias("source_system"),
     )
-    .filter(
-        col("event_id").isNotNull() & 
-        col("LCLid").isNotNull() & 
-        col("event_timestamp").isNotNull()
-    )
+    .filter(col("event_id").isNotNull() & col("LCLid").isNotNull() & col("event_timestamp").isNotNull())
     # Standardize/validate severity categories
     .withColumn(
         "severity",
-        when(col("severity").isin("CRITICAL", "HIGH", "MEDIUM", "LOW"), col("severity"))
-        .otherwise("UNKNOWN")
+        when(col("severity").isin("CRITICAL", "HIGH", "MEDIUM", "LOW"), col("severity")).otherwise("UNKNOWN"),
     )
     # Derive calendar attributes for analytical querying
     .withColumn("event_date", col("event_timestamp").cast("date"))
@@ -72,11 +58,7 @@ silver_events = silver_events.dropDuplicates(["event_id"])
 # 3. SCHEMA DRIFT METADATA
 # ==========================================
 
-silver_events = add_schema_drift_metadata(
-    spark,
-    silver_events,
-    TARGET_TABLE
-)
+silver_events = add_schema_drift_metadata(spark, silver_events, TARGET_TABLE)
 
 # ==========================================
 # 4. DATA QUALITY CHECKS
@@ -108,7 +90,7 @@ silver_events = silver_events.select(
     "dq_passed",
     "dq_failed_checks",
     "schema_drift_detected",
-    "schema_drift_columns"
+    "schema_drift_columns",
 )
 
 # ==========================================
@@ -117,8 +99,7 @@ silver_events = silver_events.select(
 
 if not spark.catalog.tableExists(TARGET_TABLE):
     (
-        silver_events.write
-        .format("delta")
+        silver_events.write.format("delta")
         .partitionBy("event_date")
         .option("mergeSchema", "true")
         .saveAsTable(TARGET_TABLE)
@@ -126,13 +107,10 @@ if not spark.catalog.tableExists(TARGET_TABLE):
     print(f"✅ Initial load complete for {TARGET_TABLE}")
 else:
     target = DeltaTable.forName(spark, TARGET_TABLE)
-    
+
     (
         target.alias("t")
-        .merge(
-            silver_events.alias("s"),
-            "t.event_id = s.event_id AND t.event_date = s.event_date"
-        )
+        .merge(silver_events.alias("s"), "t.event_id = s.event_id AND t.event_date = s.event_date")
         .whenMatchedUpdateAll()
         .whenNotMatchedInsertAll()
         .execute()

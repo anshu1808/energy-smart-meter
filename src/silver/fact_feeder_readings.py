@@ -1,17 +1,9 @@
 import sys
 from pathlib import Path
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col,
-    to_timestamp,
-    trim,
-    upper,
-    current_timestamp,
-    date_format,
-    round
-)
 from delta.tables import DeltaTable
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, current_timestamp, date_format, round, to_timestamp, trim, upper
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
@@ -39,21 +31,16 @@ if "dq_passed" in bronze_df.columns:
 # ==========================================
 
 silver_feeder = (
-    bronze_df
-    .select(
+    bronze_df.select(
         upper(trim(col("feeder_id"))).alias("feeder_id"),
         upper(trim(col("substation_id"))).alias("substation_id"),
         to_timestamp(col("DateTime")).alias("reading_timestamp"),
         col("voltage_v").cast("double"),
         col("current_a").cast("double"),
         col("active_power_kw").cast("double"),
-        trim(col("source_system")).alias("source_system")
+        trim(col("source_system")).alias("source_system"),
     )
-    .filter(
-        col("feeder_id").isNotNull() & 
-        col("substation_id").isNotNull() & 
-        col("reading_timestamp").isNotNull()
-    )
+    .filter(col("feeder_id").isNotNull() & col("substation_id").isNotNull() & col("reading_timestamp").isNotNull())
     # Derive app-level calculations and metrics
     .withColumn("voltage_v", round(col("voltage_v"), 2))
     .withColumn("current_a", round(col("current_a"), 2))
@@ -71,11 +58,7 @@ silver_feeder = silver_feeder.dropDuplicates(["feeder_id", "reading_timestamp"])
 # 3. SCHEMA DRIFT METADATA
 # ==========================================
 
-silver_feeder = add_schema_drift_metadata(
-    spark,
-    silver_feeder,
-    TARGET_TABLE
-)
+silver_feeder = add_schema_drift_metadata(spark, silver_feeder, TARGET_TABLE)
 
 # ==========================================
 # 4. DATA QUALITY CHECKS
@@ -109,7 +92,7 @@ silver_feeder = silver_feeder.select(
     "dq_passed",
     "dq_failed_checks",
     "schema_drift_detected",
-    "schema_drift_columns"
+    "schema_drift_columns",
 )
 
 # ==========================================
@@ -118,8 +101,7 @@ silver_feeder = silver_feeder.select(
 
 if not spark.catalog.tableExists(TARGET_TABLE):
     (
-        silver_feeder.write
-        .format("delta")
+        silver_feeder.write.format("delta")
         .partitionBy("reading_date")
         .option("mergeSchema", "true")
         .saveAsTable(TARGET_TABLE)
@@ -127,7 +109,7 @@ if not spark.catalog.tableExists(TARGET_TABLE):
     print(f"✅ Initial load complete for {TARGET_TABLE}")
 else:
     target = DeltaTable.forName(spark, TARGET_TABLE)
-    
+
     (
         target.alias("t")
         .merge(
@@ -136,7 +118,7 @@ else:
             t.feeder_id = s.feeder_id 
             AND t.reading_timestamp = s.reading_timestamp 
             AND t.reading_date = s.reading_date
-            """
+            """,
         )
         .whenMatchedUpdateAll()
         .whenNotMatchedInsertAll()

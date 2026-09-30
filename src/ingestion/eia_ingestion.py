@@ -1,16 +1,12 @@
-from pyspark.shell import spark
-
 import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
+from pyspark.shell import spark
+from pyspark.sql.functions import current_timestamp, lit
 
-from pyspark.sql.functions import (
-    current_timestamp,
-    lit
-)
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
 
@@ -19,6 +15,7 @@ catalog = get_catalog()
 # =====================================================
 # CONFIG
 # =====================================================
+
 
 def get_eia_api_key():
     """Resolve the EIA API key from environment variables or Databricks secrets."""
@@ -90,16 +87,9 @@ def get_last_pipeline_start_ts():
     if not spark.catalog.tableExists(audit_table):
         return None
 
-    audit_columns = {
-        field.name
-        for field in spark.table(audit_table).schema.fields
-    }
+    audit_columns = {field.name for field in spark.table(audit_table).schema.fields}
     timestamp_column = (
-        "pipeline_start_ts"
-        if "pipeline_start_ts" in audit_columns
-        else "run_ts"
-        if "run_ts" in audit_columns
-        else None
+        "pipeline_start_ts" if "pipeline_start_ts" in audit_columns else "run_ts" if "run_ts" in audit_columns else None
     )
     if timestamp_column is None:
         return None
@@ -111,20 +101,19 @@ def get_last_pipeline_start_ts():
     )
     return watermark
 
+
 # =====================================================
 # CONSTANTS
 # =====================================================
 
 RAW_EIA_PATH = "/Volumes/energy/bronze/raw/eia"
 
-API_URL = (
-    "https://api.eia.gov/v2/electricity/"
-    "rto/region-data/data/"
-)
+API_URL = "https://api.eia.gov/v2/electricity/" "rto/region-data/data/"
 
 # =====================================================
 # INGESTION
 # =====================================================
+
 
 def fetch_eia_data():
 
@@ -134,9 +123,7 @@ def fetch_eia_data():
 
     start_query = ""
     if last_pipeline_start_ts is not None:
-        start_query = (
-            f"&start={last_pipeline_start_ts.strftime('%Y-%m-%dT%H')}"
-        )
+        start_query = f"&start={last_pipeline_start_ts.strftime('%Y-%m-%dT%H')}"
 
     url = (
         API_URL
@@ -150,10 +137,7 @@ def fetch_eia_data():
         + f"&api_key={api_key}"
     )
 
-    response = requests.get(
-        url,
-        timeout=30
-    )
+    response = requests.get(url, timeout=30)
 
     response.raise_for_status()
 
@@ -162,41 +146,21 @@ def fetch_eia_data():
     records = payload["response"]["data"]
 
     if not records:
-        print(
-            f"No new EIA records after watermark="
-            f"{last_pipeline_start_ts or 'bootstrap'}"
-        )
+        print(f"No new EIA records after watermark=" f"{last_pipeline_start_ts or 'bootstrap'}")
         return
 
-    load_id = datetime.now().strftime(
-        "%Y%m%d_%H%M%S"
-    )
+    load_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     eia_df = (
         spark.createDataFrame(records)
-        .withColumn(
-            "_source_system",
-            lit("EIA")
-        )
-        .withColumn(
-            "_load_id",
-            lit(load_id)
-        )
-        .withColumn(
-            "_ingestion_ts",
-            current_timestamp()
-        )
+        .withColumn("_source_system", lit("EIA"))
+        .withColumn("_load_id", lit(load_id))
+        .withColumn("_ingestion_ts", current_timestamp())
     )
 
     eia_df.show(5, truncate=False)
 
-    (
-        eia_df.write
-        .mode("append")
-        .parquet(
-            f"{RAW_EIA_PATH}/eia_{load_id}"
-        )
-    )
+    (eia_df.write.mode("append").parquet(f"{RAW_EIA_PATH}/eia_{load_id}"))
 
     print(
         f"EIA records ingested: {eia_df.count()}, "
@@ -204,9 +168,8 @@ def fetch_eia_data():
         f"pipeline_start_ts={pipeline_start_ts}"
     )
 
-    print(
-        f"Load ID: {load_id}"
-    )
+    print(f"Load ID: {load_id}")
+
 
 # =====================================================
 # MAIN

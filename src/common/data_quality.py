@@ -1,8 +1,6 @@
 from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql.functions import col, lit, current_timestamp
-from pyspark.sql.types import (
-    StructType, StructField, StringType, LongType, TimestampType
-)
+from pyspark.sql.functions import col, current_timestamp, lit
+from pyspark.sql.types import LongType, StringType, StructField, StructType
 
 from common.config import get_catalog
 
@@ -10,14 +8,16 @@ from common.config import get_catalog
 def _log_dq_failures(spark, table_name, failure_details):
     """Write DQ failure records to the DQ failure tracking table."""
     dq_failure_table = f"{get_catalog()}.silver.dq_failures"
-    schema = StructType([
-        StructField("dq_table", StringType(), False),
-        StructField("check_name", StringType(), False),
-        StructField("check_type", StringType(), False),
-        StructField("column_name", StringType(), True),
-        StructField("failure_reason", StringType(), False),
-        StructField("failed_value", LongType(), False),
-    ])
+    schema = StructType(
+        [
+            StructField("dq_table", StringType(), False),
+            StructField("check_name", StringType(), False),
+            StructField("check_type", StringType(), False),
+            StructField("column_name", StringType(), True),
+            StructField("failure_reason", StringType(), False),
+            StructField("failed_value", LongType(), False),
+        ]
+    )
 
     records = [
         (
@@ -35,19 +35,9 @@ def _log_dq_failures(spark, table_name, failure_details):
     failure_df = failure_df.withColumn("check_ts", current_timestamp())
 
     if not spark.catalog.tableExists(dq_failure_table):
-        (
-            failure_df.write
-            .format("delta")
-            .option("mergeSchema", "true")
-            .saveAsTable(dq_failure_table)
-        )
+        (failure_df.write.format("delta").option("mergeSchema", "true").saveAsTable(dq_failure_table))
     else:
-        (
-            failure_df.write
-            .format("delta")
-            .mode("append")
-            .saveAsTable(dq_failure_table)
-        )
+        (failure_df.write.format("delta").mode("append").saveAsTable(dq_failure_table))
 
 
 def validate_data_quality(
@@ -93,13 +83,15 @@ def validate_data_quality(
             if null_count > 0:
                 reason = f"{null_count} nulls in {column}"
                 failed_checks.append(f"{check_name}: {reason}")
-                failure_details.append({
-                    "check_name": check_name,
-                    "check_type": check_type,
-                    "column_name": column,
-                    "failure_reason": reason,
-                    "failed_value": null_count,
-                })
+                failure_details.append(
+                    {
+                        "check_name": check_name,
+                        "check_type": check_type,
+                        "column_name": column,
+                        "failure_reason": reason,
+                        "failed_value": null_count,
+                    }
+                )
 
         elif check_type == "unique":
             columns = check.get("columns") or [check["column"]]
@@ -107,13 +99,15 @@ def validate_data_quality(
             if dup_count > 0:
                 reason = f"{dup_count} duplicates on {columns}"
                 failed_checks.append(f"{check_name}: {reason}")
-                failure_details.append({
-                    "check_name": check_name,
-                    "check_type": check_type,
-                    "column_name": ", ".join(str(c) for c in columns),
-                    "failure_reason": reason,
-                    "failed_value": dup_count,
-                })
+                failure_details.append(
+                    {
+                        "check_name": check_name,
+                        "check_type": check_type,
+                        "column_name": ", ".join(str(c) for c in columns),
+                        "failure_reason": reason,
+                        "failed_value": dup_count,
+                    }
+                )
 
         elif check_type == "range":
             column = check["column"]
@@ -133,25 +127,29 @@ def validate_data_quality(
                 if out_of_range > 0:
                     reason = f"{out_of_range} out-of-range values in {column}"
                     failed_checks.append(f"{check_name}: {reason}")
-                    failure_details.append({
-                        "check_name": check_name,
-                        "check_type": check_type,
-                        "column_name": column,
-                        "failure_reason": reason,
-                        "failed_value": out_of_range,
-                    })
+                    failure_details.append(
+                        {
+                            "check_name": check_name,
+                            "check_type": check_type,
+                            "column_name": column,
+                            "failure_reason": reason,
+                            "failed_value": out_of_range,
+                        }
+                    )
 
         elif check_type == "not_empty":
             if total_rows == 0:
                 reason = "0 rows in dataframe"
                 failed_checks.append(f"{check_name}: {reason}")
-                failure_details.append({
-                    "check_name": check_name,
-                    "check_type": check_type,
-                    "column_name": "",
-                    "failure_reason": reason,
-                    "failed_value": 0,
-                })
+                failure_details.append(
+                    {
+                        "check_name": check_name,
+                        "check_type": check_type,
+                        "column_name": "",
+                        "failure_reason": reason,
+                        "failed_value": 0,
+                    }
+                )
 
     if failure_details:
         _log_dq_failures(spark, table_name, failure_details)
@@ -163,12 +161,8 @@ def validate_data_quality(
         print(f"[DQ] {table_name}: {dq_summary}")
 
     if fail_on_error and failed_checks:
-        raise RuntimeError(
-            f"Data quality checks failed for {table_name}: {dq_summary}"
-        )
+        raise RuntimeError(f"Data quality checks failed for {table_name}: {dq_summary}")
 
-    return (
-        dataframe
-        .withColumn("dq_passed", lit(len(failed_checks) == 0))
-        .withColumn("dq_failed_checks", lit(dq_summary))
+    return dataframe.withColumn("dq_passed", lit(len(failed_checks) == 0)).withColumn(
+        "dq_failed_checks", lit(dq_summary)
     )

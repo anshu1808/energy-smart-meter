@@ -15,8 +15,7 @@ def get_catalog() -> str:
 
     if not catalog or not catalog.strip():
         raise RuntimeError(
-            "Databricks catalog not configured. Pass it as the first task argument "
-            "or set DATABRICKS_CATALOG."
+            "Databricks catalog not configured. Pass it as the first task argument " "or set DATABRICKS_CATALOG."
         )
 
     return catalog.strip()
@@ -36,13 +35,8 @@ def get_eia_api_key() -> str:
     dbutils = globals().get("dbutils")
     if dbutils is not None:
         try:
-            return dbutils.secrets.get(
-                scope="energy-secrets",
-                key="eia-api-key"
-            )
+            return dbutils.secrets.get(scope="energy-secrets", key="eia-api-key")
         except Exception:
             pass
 
-    raise RuntimeError(
-        "EIA API key not configured."
-    )
+    raise RuntimeError("EIA API key not configured.")
