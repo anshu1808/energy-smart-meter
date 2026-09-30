@@ -1,42 +1,119 @@
+from pyspark.shell import spark
 import requests
-import json
-import pandas as pd
-from datetime import datetime, timedelta
-import os
+from datetime import datetime, timezone
+from pyspark.sql.functions import col, current_timestamp, lit
+
+LATITUDE = 52.52
+LONGITUDE = 13.41
+
+# =====================================================
+# CONFIG
+# =====================================================
 
 
-def fetch_weather_data():
-    """
-    Fetches weather data from a weather API for a given location.
+def get_pipeline_start_ts():
+    """Return the Databricks job start time when available."""
+    for config_key in (
+        "spark.databricks.job.startTime",
+        "spark.databricks.job.startTimeMs",
+        "spark.databricks.job.runStartTime",
+    ):
+        try:
+            value = spark.conf.get(config_key)
+        except Exception:
+            continue
 
-    Args:
-        api_key (str): The API key for authentication.
-        location (str): The location for which to fetch weather data.
+        try:
+            numeric_value = float(value)
+            if numeric_value > 10_000_000_000:
+                numeric_value /= 1000
+            return datetime.fromtimestamp(
+                numeric_value,
+                timezone.utc,
+            ).replace(tzinfo=None)
+        except (TypeError, ValueError, OverflowError):
+            continue
 
-    Returns:
-        dict: The weather data for the specified location.
-    """
-    url = f"https://api.open-meteo.com/v1/forecast?latitude=52.52&longitude=13.41&current=temperature_2m,wind_speed_10m&hourly=temperature_2m,relative_humidity_2m,wind_speed_10m"
-    try:
-        response = requests.get(url, timeout=20)
-        response.raise_for_status()  # Raise an exception for HTTP errors
-        print(response.status_code)
-    except requests.RequestException as e:
-        print(f"Error fetching weather data: {e}")
-        return {}
-    os.makedirs("datasets/weather", exist_ok=True)
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    with open(f"datasets/weather/weather_data_{timestamp}.json", "w") as f:
-        json.dump(response.json(), f, indent=4)
-    print(f"Weather data saved to datasets/weather/weather_data_{timestamp}.json")
-    #print(response.status_code)
-    #print(response.text[:500])
-    data = response.json()
-    return data
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+def get_last_pipeline_start_ts():
+    """Use the last completed pipeline start as the EIA API watermark."""
+    audit_table = "energy.audit.pipeline_lineage"
+    if not spark.catalog.tableExists(audit_table):
+        return None
+
+    audit_columns = {
+        field.name
+        for field in spark.table(audit_table).schema.fields
+    }
+    timestamp_column = (
+        "pipeline_start_ts"
+        if "pipeline_start_ts" in audit_columns
+        else "run_ts"
+        if "run_ts" in audit_columns
+        else None
+    )
+    if timestamp_column is None:
+        return None
+
+    watermark = (
+        spark.table(audit_table)
+        .selectExpr(f"max(`{timestamp_column}`) AS pipeline_start_ts")
+        .first()["pipeline_start_ts"]
+    )
+    return watermark
+
+pipeline_start_ts = get_pipeline_start_ts()
+last_pipeline_start_ts = get_last_pipeline_start_ts()
+
+date_query = ""
+if last_pipeline_start_ts is not None:
+    start_query = last_pipeline_start_ts.strftime("%Y-%m-%d")
+    end_date = datetime.utcnow().strftime("%Y-%m-%d")
+    date_query = f"&start_date={start_query}&end_date={end_date}"
 
 
-if __name__ == "__main__":
-    weather_data = fetch_weather_data()
-    # Convert the weather data to a DataFrame for further processing if needed
-    df = pd.DataFrame(weather_data)
-    print(df.head())
+url = (
+    "https://api.open-meteo.com/v1/forecast"
+    f"?latitude={LATITUDE}"
+    f"&longitude={LONGITUDE}"
+    "&hourly=temperature_2m,"
+    "relative_humidity_2m,"
+    "wind_speed_10m,"
+    "precipitation"
+    f"{date_query}"
+)
+
+response = requests.get(url, timeout=30)
+response.raise_for_status()
+
+data = response.json()
+
+records = []
+
+for i in range(len(data["hourly"]["time"])):
+    records.append({
+        "timestamp": data["hourly"]["time"][i],
+        "temperature": data["hourly"]["temperature_2m"][i],
+        "humidity": data["hourly"]["relative_humidity_2m"][i],
+        "wind_speed": data["hourly"]["wind_speed_10m"][i],
+        "precipitation": data["hourly"]["precipitation"][i]
+    })
+
+load_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+weather_df = (
+    spark.createDataFrame(records)
+    .withColumn("_source_system", lit("OPEN_METEO"))
+    .withColumn("_ingestion_ts", current_timestamp())
+    .withColumn("_load_id", lit(load_ts))
+)
+
+(
+    weather_df.write
+    .mode("append")
+    .parquet(
+        f"/Volumes/energy/bronze/raw/weather/weather_{load_ts}"
+    )
+)
+
+print("Weather raw snapshot written successfully")

@@ -9,6 +9,9 @@ datasets/gold/
 *.pyc
 .env
 datasets/meter/
+datasets/weather/
+datasets/eia/
+datasets/billing/
 datasets/bronze/
 datasets/silver/
 datasets/gold/

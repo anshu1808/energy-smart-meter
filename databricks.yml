@@ -3,7 +3,11 @@ bundle:
   uuid: a36d509c-f99f-4940-bbfa-cb3c671387d0
 
 include:
-  - resources/*.yml
+  - resources/jobs/*.yml
+
+sync:
+  exclude:
+    - datasets/**
 
 variables:
   catalog:
@@ -22,6 +26,7 @@ targets:
     default: true
 
     workspace:
+      profile: energy-dev
       host: https://dbc-23c305ec-be26.cloud.databricks.com
 
     variables:

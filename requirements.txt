@@ -1,3 +1,4 @@
 requests
 pandas
 pyspark
+openpyxl>=3.1.5

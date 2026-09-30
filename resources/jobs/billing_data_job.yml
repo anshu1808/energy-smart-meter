@@ -1,0 +1,18 @@
+resources:
+  jobs:
+    billing_data_job:
+      name: billing_data_job
+
+      tasks:
+        - task_key: billing_data
+
+          spark_python_task:
+            python_file: ${workspace.file_path}/src/ingestion/generate_billing_data.py
+
+          environment_key: default
+
+      environments:
+        - environment_key: default
+
+          spec:
+            client: "2"
