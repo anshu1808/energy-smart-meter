@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 
+from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
@@ -161,8 +162,6 @@ billing = billing.dropDuplicates(["billing_business_key"])
 # =====================================================
 # SILVER FACT BILLING
 # =====================================================
-
-from delta.tables import DeltaTable
 
 TARGET_TABLE = f"{catalog}.silver.fact_billing"
 

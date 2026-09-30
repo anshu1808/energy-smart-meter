@@ -24,7 +24,7 @@ bronze_df = spark.table(BRONZE_TABLE)
 
 # Filter out failed bronze DQ records if metadata column exists
 if "dq_passed" in bronze_df.columns:
-    bronze_df = bronze_df.filter(col("dq_passed") == True)
+    bronze_df = bronze_df.filter(col("dq_passed"))
 
 # ==========================================
 # 2. TRANSFORMATIONS & TYPE CASTING
