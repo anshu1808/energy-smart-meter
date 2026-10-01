@@ -1,0 +1,42 @@
+# Mandatory. Validated in CI by ci/validate_metadata.py.
+project_name: energy_smart_meter
+project_type: analytical
+purpose: >
+  Ingest smart-meter readings, tariffs, Open-Meteo weather and EIA demand; build silver
+  dimensions/facts and gold marts (revenue, peak load, theft detection, weather impact).
+source: { system: Smart meter CSV + Tariffs.xlsx + Open-Meteo API + EIA API, connection_type: file and API }
+ingestion_type: batch
+frequency: daily
+layers: [bronze, silver, gold]
+tables_impacted:            # catalog.schema.table (prod names)
+  - energy.bronze.bronze_meter_readings
+  - energy.bronze.bronze_weather
+  - energy.bronze.bronze_eia
+  - energy.bronze.bronze_tariff
+  - energy.bronze.bronze_feeder_readings
+  - energy.bronze.bronze_meter_events
+  - energy.silver.dim_customer
+  - energy.silver.dim_meter
+  - energy.silver.dim_tariff
+  - energy.silver.dim_date
+  - energy.silver.fact_consumption
+  - energy.silver.fact_weather
+  - energy.silver.fact_eia_demand
+  - energy.silver.fact_billing
+  - energy.silver.fact_feeder_readings
+  - energy.silver.fact_meter_events
+  - energy.silver.dq_failures
+  - energy.gold.gold_revenue_summary
+  - energy.gold.gold_peak_load
+  - energy.gold.gold_theft_detection
+  - energy.gold.gold_weather_impact
+  - energy.audit.pipeline_lineage
+upstream_pipelines: []
+downstream_pipelines: []
+developer_name: Anshu
+developer_team: Data Engineering
+consumer_teams: []
+data_classification: internal
+contains_pii: false          # LCLid is a pseudonymous household id; set true + confidential-pii if your policy says so
+ticket_id: "1"
+sla: data available by 06:00 daily
