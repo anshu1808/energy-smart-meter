@@ -23,7 +23,7 @@ databaseChangeLog:
               - column: { name: operation, type: STRING }
               - column: { name: objects, type: STRING }
               - column: { name: is_destructive, type: BOOLEAN }
-              - column: { name: rollback_available, type: BOOLEAN }
+              - column: { name: is_rollback_available, type: BOOLEAN }
               - column: { name: checksum, type: STRING }
               - column: { name: git_commit, type: STRING }
               - column: { name: applied_at, type: TIMESTAMP }
