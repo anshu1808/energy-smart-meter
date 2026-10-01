@@ -50,8 +50,7 @@ jobs:
     environment: dev            # gives the job the dev secrets
     env:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: databricks/setup-cli@main
@@ -66,8 +65,8 @@ jobs:
       CATALOG: ${{ vars.CATALOG }}
       DBX_HOST: ${{ secrets.DATABRICKS_HOST }}
       DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
-      DBX_SP_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-      DBX_SP_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
