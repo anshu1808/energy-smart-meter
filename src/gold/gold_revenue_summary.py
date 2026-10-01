@@ -1,18 +1,24 @@
+import sys
+from pathlib import Path
+
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import avg, countDistinct, current_timestamp
 from pyspark.sql.functions import sum as spark_sum
-from data_quality import validate_data_quality
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
-#spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
+catalog = get_catalog()
+# spark.conf.set("spark.databricks.delta.schema.autoMerge.enabled", "true")
 
-TARGET_TABLE = "energy.gold.gold_revenue_summary"
-fact_billing = spark.table("energy.silver.fact_billing")
+TARGET_TABLE = f"{catalog}.gold.gold_revenue_summary"
+fact_billing = spark.table(f"{catalog}.silver.fact_billing")
 
 gold_df = (
-    fact_billing
-    .groupBy("billing_period")
+    fact_billing.groupBy("billing_period")
     .agg(
         countDistinct("customer_key").alias("customer_count"),
         countDistinct("meter_key").alias("meter_count"),
@@ -36,7 +42,12 @@ gold_df = validate_data_quality(
         {"name": "revenue_summary_not_empty", "check_type": "not_empty"},
         {"name": "billing_period_not_null", "check_type": "not_null", "column": "billing_period"},
         {"name": "billing_period_unique", "check_type": "unique", "column": "billing_period"},
-        {"name": "total_consumption_non_negative", "check_type": "range", "column": "total_consumption_kwh", "min_val": 0},
+        {
+            "name": "total_consumption_non_negative",
+            "check_type": "range",
+            "column": "total_consumption_kwh",
+            "min_val": 0,
+        },
         {"name": "total_revenue_non_negative", "check_type": "range", "column": "total_revenue", "min_val": 0},
     ],
 )

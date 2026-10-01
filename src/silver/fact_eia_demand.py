@@ -1,3 +1,7 @@
+import sys
+from pathlib import Path
+
+from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import (
     col,
@@ -9,74 +13,41 @@ from pyspark.sql.functions import (
     to_date,
     to_timestamp,
 )
-from delta.tables import DeltaTable
-from data_quality import validate_data_quality
-from schema_drift import add_schema_drift_metadata
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
-TARGET_TABLE = "energy.silver.fact_eia_demand"
+TARGET_TABLE = f"{catalog}.silver.fact_eia_demand"
 
 # =====================================================
 # SOURCE TABLES
 # =====================================================
 
-eia_df = spark.table(
-    "energy.bronze.bronze_eia"
-)
+eia_df = spark.table(f"{catalog}.bronze.bronze_eia")
 
-dim_date = spark.table(
-    "energy.silver.dim_date"
-)
+dim_date = spark.table(f"{catalog}.silver.dim_date")
 
 # =====================================================
 # CLEAN EIA DATA
 # =====================================================
 
 fact_df = (
-    eia_df
-    .filter(col("period").isNotNull())
+    eia_df.filter(col("period").isNotNull())
     .filter(col("respondent").isNotNull())
     .filter(col("type").isNotNull())
-    .withColumn(
-        "demand_timestamp",
-        to_timestamp(col("period"), "yyyy-MM-dd'T'HH")
-    )
-    .withColumn(
-        "full_date",
-        to_date(col("demand_timestamp"))
-    )
-    .withColumn(
-        "date_key",
-        date_format(col("full_date"), "yyyyMMdd").cast("int")
-    )
-    .withColumn(
-        "hour_of_day",
-        hour(col("demand_timestamp"))
-    )
-    .withColumn(
-        "demand_mwh",
-        col("value").cast("double")
-    )
-    .withColumn(
-        "demand_business_key",
-        concat(
-            col("respondent"),
-            lit("_"),
-            col("period"),
-            lit("_"),
-            col("type")
-        )
-    )
-    .withColumn(
-        "load_ts",
-        current_timestamp()
-    )
-    .join(
-        dim_date.select("date_key"),
-        "date_key",
-        "left"
-    )
+    .withColumn("demand_timestamp", to_timestamp(col("period"), "yyyy-MM-dd'T'HH"))
+    .withColumn("full_date", to_date(col("demand_timestamp")))
+    .withColumn("date_key", date_format(col("full_date"), "yyyyMMdd").cast("int"))
+    .withColumn("hour_of_day", hour(col("demand_timestamp")))
+    .withColumn("demand_mwh", col("value").cast("double"))
+    .withColumn("demand_business_key", concat(col("respondent"), lit("_"), col("period"), lit("_"), col("type")))
+    .withColumn("load_ts", current_timestamp())
+    .join(dim_date.select("date_key"), "date_key", "left")
 )
 
 # =====================================================
@@ -109,9 +80,7 @@ fact_df = validate_data_quality(
     ],
 )
 
-fact_df = add_schema_drift_metadata(
-    spark, fact_df, TARGET_TABLE
-)
+fact_df = add_schema_drift_metadata(spark, fact_df, TARGET_TABLE)
 
 fact_df = fact_df.dropDuplicates(["demand_business_key"])
 
@@ -121,12 +90,7 @@ fact_df = fact_df.dropDuplicates(["demand_business_key"])
 
 if not spark.catalog.tableExists(TARGET_TABLE):
 
-    (
-        fact_df.write
-        .format("delta")
-        .option("mergeSchema", "true")
-        .saveAsTable(TARGET_TABLE)
-    )
+    (fact_df.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial fact_eia_demand load complete")
 
@@ -136,17 +100,11 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 
 else:
 
-    target = DeltaTable.forName(
-        spark,
-        TARGET_TABLE
-    )
+    target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (
         target.alias("t")
-        .merge(
-            fact_df.alias("s"),
-            "t.demand_business_key = s.demand_business_key"
-        )
+        .merge(fact_df.alias("s"), "t.demand_business_key = s.demand_business_key")
         .whenMatchedUpdateAll()
         .whenNotMatchedInsertAll()
         .execute()

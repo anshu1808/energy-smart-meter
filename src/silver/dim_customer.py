@@ -1,39 +1,32 @@
+import sys
+from pathlib import Path
 
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col,
-    lit,
-    row_number,
-    concat,
-    lpad,
-    current_timestamp,
-    when
-)
-from pyspark.sql.window import Window
 from delta.tables import DeltaTable
-from data_quality import validate_data_quality
-from schema_drift import add_schema_drift_metadata
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, concat, current_timestamp, lit, lpad, row_number, when
+from pyspark.sql.window import Window
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
-TARGET_TABLE = "energy.silver.dim_customer"
+TARGET_TABLE = f"{catalog}.silver.dim_customer"
 
 # ==========================================
 # SOURCE
 # ==========================================
 
-meter_df = spark.table(
-    "energy.bronze.bronze_meter_readings"
-)
+meter_df = spark.table(f"{catalog}.bronze.bronze_meter_readings")
 
 # ==========================================
 # DQ
 # ==========================================
 
-meter_df = (
-    meter_df
-    .filter(col("LCLid").isNotNull())
-)
+meter_df = meter_df.filter(col("LCLid").isNotNull())
 
 # ==========================================
 # DIM CUSTOMER
@@ -41,11 +34,7 @@ meter_df = (
 
 window_spec = Window.orderBy("LCLid")
 
-base = (
-    meter_df
-    .select("LCLid", "stdorToU")
-    .dropDuplicates(["LCLid"])
-)
+base = meter_df.select("LCLid", "stdorToU").dropDuplicates(["LCLid"])
 
 if spark.catalog.tableExists(TARGET_TABLE):
     existing = spark.table(TARGET_TABLE).select("LCLid", "customer_key")
@@ -57,22 +46,20 @@ else:
     new_customers = base
     existing_customers = base.limit(0).withColumn("customer_key", lit(None).cast("long"))
 
-new_customers = new_customers.withColumn(
-    "customer_key", row_number().over(window_spec) + lit(max_key)
-)
+new_customers = new_customers.withColumn("customer_key", row_number().over(window_spec) + lit(max_key))
 
-dim_customer = existing_customers.unionByName(new_customers).withColumn(
-    "customer_id",
-    concat(lit("CUST"), lpad(col("customer_key").cast("string"), 6, "0"))
-).withColumn(
-    "customer_type", col("stdorToU")          # keep raw Std/ToU — see Fix 2
-).withColumn(
-    "tariff_id",
-    when(col("customer_type") == "Std", lit("TAR001"))
-    .otherwise(lit("TAR002"))  # ToU customers get Low tariff
-).withColumn("status", lit("ACTIVE")) \
- .withColumn("region", lit("LONDON")) \
- .withColumn("load_ts", current_timestamp())
+dim_customer = (
+    existing_customers.unionByName(new_customers)
+    .withColumn("customer_id", concat(lit("CUST"), lpad(col("customer_key").cast("string"), 6, "0")))
+    .withColumn("customer_type", col("stdorToU"))  # keep raw Std/ToU — see Fix 2
+    .withColumn(
+        "tariff_id",
+        when(col("customer_type") == "Std", lit("TAR001")).otherwise(lit("TAR002")),  # ToU customers get Low tariff
+    )
+    .withColumn("status", lit("ACTIVE"))
+    .withColumn("region", lit("LONDON"))
+    .withColumn("load_ts", current_timestamp())
+)
 
 dim_customer.show()
 
@@ -89,9 +76,7 @@ dim_customer = validate_data_quality(
     ],
 )
 
-dim_customer = add_schema_drift_metadata(
-    spark, dim_customer, TARGET_TABLE
-)
+dim_customer = add_schema_drift_metadata(spark, dim_customer, TARGET_TABLE)
 
 dim_customer = dim_customer.select(
     "customer_key",
@@ -105,7 +90,7 @@ dim_customer = dim_customer.select(
     "dq_passed",
     "dq_failed_checks",
     "schema_drift_detected",
-    "schema_drift_columns"
+    "schema_drift_columns",
 )
 
 # ==========================================
@@ -114,12 +99,7 @@ dim_customer = dim_customer.select(
 
 if not spark.catalog.tableExists(TARGET_TABLE):
 
-    (
-        dim_customer.write
-        .format("delta")
-        .option("mergeSchema", "true")
-        .saveAsTable(TARGET_TABLE)
-    )
+    (dim_customer.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial dim_customer load complete")
 
@@ -129,17 +109,11 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 
 else:
 
-    target = DeltaTable.forName(
-        spark,
-        TARGET_TABLE
-    )
+    target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (
         target.alias("t")
-        .merge(
-            dim_customer.alias("s"),
-            "t.LCLid = s.LCLid"
-        )
+        .merge(dim_customer.alias("s"), "t.LCLid = s.LCLid")
         .whenMatchedUpdateAll()
         .whenNotMatchedInsertAll()
         .execute()
@@ -147,10 +121,8 @@ else:
 
     print("dim_customer merged successfully")
 
-print(
-    f"dim_customer rows: {dim_customer.count()}"
-)
-'''
+print(f"dim_customer rows: {dim_customer.count()}")
+"""
 
 import dlt
 
@@ -184,7 +156,7 @@ def dim_customer_source():
 
     return (
         spark.read.table(
-            "energy.bronze.bronze_meter_readings"
+            f"{catalog}.bronze.bronze_meter_readings"
         )
         .filter(
             col("LCLid").isNotNull()
@@ -259,4 +231,4 @@ dlt.create_auto_cdc_from_snapshot_flow(
     keys=["LCLid"],
     stored_as_scd_type=2
 )
-'''
+"""

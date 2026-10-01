@@ -1,0 +1,104 @@
+name: ci
+
+# Runs on every pull request. Make these jobs REQUIRED status checks in branch protection.
+on:
+  pull_request:
+    branches: [dev, qa, main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    env:
+      BASE_REF: origin/${{ github.base_ref }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+
+      - name: Branch name (feature PRs into dev only)
+        if: github.base_ref == 'dev'
+        run: bash ci/check_branch_name.sh "${{ github.head_ref }}"
+
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install ruff black pyyaml pytest pytest-cov sqlfluff
+
+      - name: Lint and format
+        run: |
+          ruff check .
+          black --check .
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: metadata.yml validation
+        run: python ci/validate_metadata.py --path metadata.yml
+
+      - name: Unit tests
+        run: pytest -q --cov=ci --cov=scripts --cov-report=term-missing
+
+      - name: Debug auth vars
+        run: |
+          echo "HOST_SET=${{ secrets.DATABRICKS_HOST != '' }}"
+          echo "TOKEN_SET=${{ secrets.DATABRICKS_TOKEN != '' }}"
+
+  bundle-validate:
+    runs-on: ubuntu-latest
+    environment: dev            # gives the job the dev secrets
+    env:
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle validate -t dev
+
+  dbcr-guard:
+    runs-on: ubuntu-latest
+    environment: dev
+    env:
+      BASE_REF: origin/${{ github.base_ref }}
+      ENV: dev
+      CATALOG: ${{ vars.CATALOG }}
+      DBX_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install pyyaml
+      - uses: liquibase/setup-liquibase@v3
+        with: { version: "5.0.3", edition: "community" }
+      # Package names: confirm with `liquibase lpm search databricks` on first run.
+      - name: Install Databricks extension + JDBC driver
+        run: |
+          liquibase lpm add liquibase-databricks --global || true
+          liquibase lpm add databricks-jdbc --global || true
+      - name: Render liquibase.properties
+        working-directory: sql/ddl
+        run: |
+          sudo apt-get install -y gettext-base >/dev/null
+          envsubst < liquibase.properties.template > liquibase.properties
+      - name: Plan pending DDL
+        working-directory: sql/ddl
+        run: liquibase updateSQL | tee plan.sql
+      - name: DDL policy guard (block catalog/schema creation, hold DROP/DELETE/TRUNCATE)
+        run: python ci/dbcr_guard.py < sql/ddl/plan.sql
+        env:
+          CONFIRM_DESTRUCTIVE: ${{ contains(github.event.pull_request.labels.*.name, 'confirm-destructive') }}
+      - name: Naming convention guard
+        run: python ci/naming_guard.py --changed --rules config/schema/conventions.yml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with: { name: dbcr-plan, path: sql/ddl/plan.sql }

@@ -1,3 +1,7 @@
+# Your databricks.yml, extended. Changes vs. today:
+#  - `dev` (development mode + CLI profile) renamed to `local`, so CI can have real dev/qa/prod targets
+#  - separate catalog per environment (tables are no longer shared between dev/qa/prod)
+#  - qa/prod deploy under /Workspace/Shared, run as a service principal (not your personal folder)
 bundle:
   name: energy_smart_meter
   uuid: a36d509c-f99f-4940-bbfa-cb3c671387d0
@@ -11,53 +15,53 @@ sync:
 
 variables:
   catalog:
-    description: The catalog to use
-
-  schema:
-    description: The schema to use
-
+    description: Unity Catalog catalog for this environment (pass to jobs as a parameter; do not hardcode "energy." in code)
   pipeline_development:
     description: DLT development mode
+    default: false
 
 targets:
-
-  dev:
+  # your personal sandbox: databricks bundle deploy -t local
+  local:
     mode: development
     default: true
-
     workspace:
       profile: energy-dev
       host: https://dbc-23c305ec-be26.cloud.databricks.com
-
     variables:
-      catalog: energy
-      schema: energy_smart_meter_pipe_dev
+      catalog: energy_dev
       pipeline_development: true
+
+  dev:
+    mode: production
+    workspace:
+      host: https://dbc-23c305ec-be26.cloud.databricks.com
+      root_path: /Workspace/Shared/energy_smart_meter/.bundle/${bundle.target}
+    run_as:
+      service_principal_name: "<DEV_SP_APPLICATION_ID>"
+    variables:
+      catalog: energy_dev
 
   qa:
     mode: production
-
     workspace:
       host: https://dbc-23c305ec-be26.cloud.databricks.com
-      root_path: /Workspace/Users/anshu.accent@gmail.com/.bundle/${bundle.name}/${bundle.target}
-
+      root_path: /Workspace/Shared/energy_smart_meter/.bundle/${bundle.target}
+    run_as:
+      service_principal_name: "<QA_SP_APPLICATION_ID>"
     variables:
-      catalog: energy
-      schema: energy_smart_meter_pipe_qa
-      pipeline_development: false
+      catalog: energy_qa
 
   prod:
     mode: production
-
     workspace:
       host: https://dbc-23c305ec-be26.cloud.databricks.com
-      root_path: /Workspace/Users/anshu.accent@gmail.com/.bundle/${bundle.name}/${bundle.target}
-
+      root_path: /Workspace/Shared/energy_smart_meter/.bundle/${bundle.target}
+    run_as:
+      service_principal_name: "<PROD_SP_APPLICATION_ID>"
     variables:
-      catalog: energy
-      schema: energy_smart_meter_pipe_prod
-      pipeline_development: false
+      catalog: energy          # existing catalog = production, so no data has to move
 
-    permissions:
-      - user_name: anshu.accent@gmail.com
-        level: CAN_MANAGE
+permissions:
+  - user_name: anshu.accent@gmail.com
+    level: CAN_MANAGE

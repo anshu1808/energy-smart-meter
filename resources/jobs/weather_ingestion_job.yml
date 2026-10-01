@@ -8,6 +8,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/ingestion/weather_ingestion.py
+            parameters: ["${var.catalog}"]
 
           environment_key: default
 

@@ -1,0 +1,5 @@
+# Do not hand-edit. Drop a new file into changelogs/ - it runs in filename order.
+databaseChangeLog:
+  - includeAll:
+      path: changelogs/
+      relativeToChangelogFile: true

@@ -1,37 +1,32 @@
-from pyspark.sql import SparkSession
-from pyspark.sql.functions import (
-    col,
-    lit,
-    row_number,
-    concat,
-    lpad,
-    current_timestamp
-)
-from pyspark.sql.window import Window
+import sys
+from pathlib import Path
+
 from delta.tables import DeltaTable
-from data_quality import validate_data_quality
-from schema_drift import add_schema_drift_metadata
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, concat, current_timestamp, lit, lpad, row_number
+from pyspark.sql.window import Window
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+from common.data_quality import validate_data_quality  # noqa: E402
+from common.schema_drift import add_schema_drift_metadata  # noqa: E402
 
 spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
 
-TARGET_TABLE = "energy.silver.dim_meter"
+TARGET_TABLE = f"{catalog}.silver.dim_meter"
 
 # =====================================================
 # SOURCE
 # =====================================================
 
-meter_df = spark.table(
-    "energy.bronze.bronze_meter_readings"
-)
+meter_df = spark.table(f"{catalog}.bronze.bronze_meter_readings")
 
 # =====================================================
 # DQ
 # =====================================================
 
-meter_df = (
-    meter_df
-    .filter(col("LCLid").isNotNull())
-)
+meter_df = meter_df.filter(col("LCLid").isNotNull())
 
 # =====================================================
 # DIM METER
@@ -40,48 +35,16 @@ meter_df = (
 window_spec = Window.orderBy("LCLid")
 
 dim_meter = (
-    meter_df
-    .select("LCLid", "stdorToU","DateTime","kwh_hh")
+    meter_df.select("LCLid", "stdorToU", "DateTime", "kwh_hh")
     .dropDuplicates(["LCLid"])
-    .withColumn(
-        "meter_key",
-        row_number().over(window_spec)
-    )
-    .withColumn(
-        "meter_id",
-        concat(
-            lit("MTR"),
-            lpad(
-                col("meter_key"),
-                6,
-                "0"
-            )
-        )
-    )
-    .withColumn(
-        "meter_type",
-        lit("SMART")
-    )
-    .withColumn(
-        "manufacturer",
-        lit("LANDIS_GYR")
-    )
-    .withColumn(
-        "status",
-        lit("ACTIVE")
-    )
-    .withColumn(
-        "install_date",
-        lit("2012-01-01")
-    )
-    .withColumn(
-        "region",
-        lit("LONDON")
-    )
-    .withColumn(
-        "load_ts",
-        current_timestamp()
-    )
+    .withColumn("meter_key", row_number().over(window_spec))
+    .withColumn("meter_id", concat(lit("MTR"), lpad(col("meter_key"), 6, "0")))
+    .withColumn("meter_type", lit("SMART"))
+    .withColumn("manufacturer", lit("LANDIS_GYR"))
+    .withColumn("status", lit("ACTIVE"))
+    .withColumn("install_date", lit("2012-01-01"))
+    .withColumn("region", lit("LONDON"))
+    .withColumn("load_ts", current_timestamp())
 )
 
 # =====================================================
@@ -100,7 +63,7 @@ dim_meter = dim_meter.select(
     "status",
     "install_date",
     "region",
-    "load_ts"
+    "load_ts",
 )
 
 dim_meter = validate_data_quality(
@@ -116,9 +79,7 @@ dim_meter = validate_data_quality(
     ],
 )
 
-dim_meter = add_schema_drift_metadata(
-    spark, dim_meter, TARGET_TABLE
-)
+dim_meter = add_schema_drift_metadata(spark, dim_meter, TARGET_TABLE)
 
 dim_meter = dim_meter.dropDuplicates(["LCLid"])
 
@@ -128,12 +89,7 @@ dim_meter = dim_meter.dropDuplicates(["LCLid"])
 
 if not spark.catalog.tableExists(TARGET_TABLE):
 
-    (
-        dim_meter.write
-        .format("delta")
-        .option("mergeSchema", "true")
-        .saveAsTable(TARGET_TABLE)
-    )
+    (dim_meter.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial dim_meter load complete")
 
@@ -143,17 +99,11 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 
 else:
 
-    target = DeltaTable.forName(
-        spark,
-        TARGET_TABLE
-    )
+    target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (
         target.alias("t")
-        .merge(
-            dim_meter.alias("s"),
-            "t.LCLid = s.LCLid"
-        )
+        .merge(dim_meter.alias("s"), "t.LCLid = s.LCLid")
         .whenMatchedUpdateAll()
         .whenNotMatchedInsertAll()
         .execute()
@@ -161,6 +111,4 @@ else:
 
     print("dim_meter merged successfully")
 
-print(
-    f"dim_meter rows: {dim_meter.count()}"
-)
+print(f"dim_meter rows: {dim_meter.count()}")

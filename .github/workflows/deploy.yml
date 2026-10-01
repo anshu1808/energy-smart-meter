@@ -1,0 +1,65 @@
+name: deploy
+
+# dev branch -> dev, qa branch -> qa, main branch -> prod.
+# In GitHub: Settings > Environments > prod > "Required reviewers" = the manual approval gate.
+on:
+  push:
+    branches: [dev, qa, main]
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+    concurrency: deploy-${{ github.ref_name }}
+    env:
+      TARGET: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+      ENV: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+      CATALOG: ${{ vars.CATALOG }}      # energy_dev | energy_qa | energy (per GitHub Environment)
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DBX_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
+      DBX_SP_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
+      DBX_SP_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.11" }
+      - run: pip install databricks-sql-connector databricks-sdk pyyaml
+
+      # 1) Tables first (DBCR), so jobs/pipelines never run against a missing table.
+      - uses: liquibase/setup-liquibase@v3
+        with: { version: "5.0.3", edition: "community" }
+      - name: Install Databricks extension + JDBC driver
+        run: |
+          liquibase lpm add liquibase-databricks --global || true
+          liquibase lpm add databricks-jdbc --global || true
+      - name: Render liquibase.properties
+        working-directory: sql/ddl
+        run: |
+          sudo apt-get install -y gettext-base >/dev/null
+          envsubst < liquibase.properties.template > liquibase.properties
+      - name: Plan (records exactly what will be applied)
+        working-directory: sql/ddl
+        run: liquibase updateSQL | tee plan.sql
+      - name: Guard (CREATE CATALOG/SCHEMA still hard-blocked; destructive DDL already gated by the PR label)
+        run: python ci/dbcr_guard.py < sql/ddl/plan.sql
+        env:
+          CONFIRM_DESTRUCTIVE: "true"
+      - name: Apply changesets
+        working-directory: sql/ddl
+        run: liquibase update --contexts=all
+      - name: Tag release in Liquibase history
+        working-directory: sql/ddl
+        run: liquibase tag "${TARGET}-${GITHUB_SHA::7}"
+      - name: Record DBCR audit rows
+        run: python ci/record_dbcr.py sql/ddl/plan.sql
+
+      # 2) Then the Asset Bundle (jobs + pipelines).
+      - uses: databricks/setup-cli@main
+      - run: databricks bundle validate -t "$TARGET"
+      - run: databricks bundle deploy -t "$TARGET"

@@ -14,11 +14,13 @@ resources:
         - task_key: weather_ingestion
           spark_python_task:
             python_file: ${workspace.file_path}/src/ingestion/weather_ingestion.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: eia_ingestion
           spark_python_task:
             python_file: ${workspace.file_path}/src/ingestion/eia_ingestion.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         # =====================================
@@ -32,6 +34,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/bronze/bronze_meter_readings.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: bronze_weather
@@ -40,6 +43,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/bronze/bronze_weather.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: bronze_eia
@@ -48,6 +52,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/bronze/bronze_eia.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: bronze_tariff
@@ -56,6 +61,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/bronze/bronze_tariff.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: bronze_feeder_readings
@@ -64,6 +70,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/bronze/ingest_feeder_readings.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: bronze_meter_events
@@ -72,6 +79,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/bronze/ingest_meter_events.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         # =====================================
@@ -84,6 +92,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/dim_customer.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: dim_meter
@@ -92,6 +101,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/dim_meter.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: dim_tariff
@@ -101,6 +111,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/dim_tariff.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: dim_date
@@ -109,6 +120,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/dim_date.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         # =====================================
@@ -123,6 +135,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/fact_consumption.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: fact_weather
@@ -132,6 +145,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/fact_weather.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: fact_eia_demand
@@ -141,6 +155,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/fact_eia_demand.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: fact_billing
@@ -153,6 +168,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/fact_billing.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: fact_feeder_readings
@@ -161,6 +177,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/fact_feeder_readings.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: fact_meter_events
@@ -169,6 +186,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/silver/fact_meter_events.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         # =====================================
@@ -181,6 +199,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/gold/gold_revenue_summary.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: gold_peak_load
@@ -189,6 +208,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/gold/gold_peak_load.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: gold_theft_detection
@@ -198,6 +218,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/gold/gold_theft_detection.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         - task_key: gold_weather_impact
@@ -207,6 +228,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/gold/gold_weather_impact.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
         # =====================================
@@ -239,6 +261,7 @@ resources:
 
           spark_python_task:
             python_file: ${workspace.file_path}/src/audit/pipeline_lineage.py
+            parameters: ["${var.catalog}"]
           environment_key: default
 
       environments:

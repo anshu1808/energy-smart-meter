@@ -1,12 +1,19 @@
+import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, lit
 
-spark = SparkSession.builder.getOrCreate()
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
 
-AUDIT_TABLE = "energy.audit.pipeline_lineage"
+spark = SparkSession.builder.getOrCreate()
+catalog = get_catalog()
+
+AUDIT_TABLE = f"{catalog}.audit.pipeline_lineage"
 PIPELINE_SCHEMAS = ("bronze", "silver", "gold", "audit")
+
 
 def get_databricks_context():
     dbutils = globals().get("dbutils")
@@ -35,6 +42,7 @@ def get_run_id(context):
         return str(context.currentRunId().get().id())
     except Exception:
         return get_context_tag(context, "jobRunId") or "manual"
+
 
 def get_pipeline_start_ts(context):
     context_start = get_context_tag(context, "startTime")
@@ -75,24 +83,21 @@ run_id = get_run_id(context)
 audit_task_start_ts = datetime.now(timezone.utc).replace(tzinfo=None)
 pipeline_start_ts = get_pipeline_start_ts(context)
 
-spark.sql("CREATE SCHEMA IF NOT EXISTS energy.audit")
+spark.sql(f"CREATE SCHEMA IF NOT EXISTS {catalog}.audit")
 
 schema_filter = ", ".join(f"'{schema_name}'" for schema_name in PIPELINE_SCHEMAS)
-tables_df = spark.sql(
-    f"""
+tables_df = spark.sql(f"""
     SELECT
         table_catalog,
         table_schema,
         table_name,
         table_type
-    FROM energy.information_schema.tables
+    FROM {catalog}.information_schema.tables
     WHERE table_schema IN ({schema_filter})
-    """
-)
+    """)
 
 lineage_df = (
-    tables_df
-    .withColumn("run_id", lit(run_id))
+    tables_df.withColumn("run_id", lit(run_id))
     .withColumn("run_ts", lit(pipeline_start_ts).cast("timestamp"))
     .withColumn("pipeline_start_ts", lit(pipeline_start_ts).cast("timestamp"))
     .withColumn("pipeline_end_ts", current_timestamp())
@@ -112,13 +117,7 @@ lineage_df = (
     )
 )
 
-(
-    lineage_df.write
-    .format("delta")
-    .mode("append")
-    .option("mergeSchema", "true")
-    .saveAsTable(AUDIT_TABLE)
-)
+(lineage_df.write.format("delta").mode("append").option("mergeSchema", "true").saveAsTable(AUDIT_TABLE))
 
 print(
     f"Pipeline lineage recorded: run_id={run_id}, "

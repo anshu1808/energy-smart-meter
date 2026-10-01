@@ -1,17 +1,33 @@
 .venv/
+venv/
+.databricks/
 __pycache__/
-.ipynb_checkpoints/
-
-datasets/bronze/
-datasets/silver/
-datasets/gold/
-
 *.pyc
+.pytest_cache/
+.ruff_cache/
+.idea/
+# local Spark output
+spark-warehouse/
+metastore_db/
+derby.log
+# secrets / local config - NEVER commit
 .env
-datasets/meter/
-datasets/weather/
-datasets/eia/
-datasets/billing/
-datasets/bronze/
-datasets/silver/
-datasets/gold/
+.env.*
+!.env.template
+configuration.txt
+*.databrickscfg
+# generated
+sql/ddl/liquibase.properties
+sql/ddl/liquibase_libs/
+sql/ddl/plan.sql
+gitleaks-report.json
+# raw data belongs in a UC volume / cloud storage, not Git
+datasets/*
+!datasets/README.md
+*.csv
+# fixes
+cofiguration.txt
+configuration*.txt
+test.txt
+"ql -Recurse"
+ql*Recurse*

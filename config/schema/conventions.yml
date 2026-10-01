@@ -1,0 +1,11 @@
+# Single source of truth for naming; read by ci/naming_guard.py
+identifiers:
+  case: "^[a-z][a-z0-9_]*$"
+  max_length: 63
+tables:
+  bronze: { regex: "^[a-z][a-z0-9_]*$" }
+  silver: { regex: "^(dim|fact|brg|ref|dq)_[a-z0-9_]+$" }   # dq_failures lives here today; better moved to audit
+  gold:   { regex: "^(gold|vw|kpi|rpt)_[a-z0-9_]+$" }
+columns:
+  boolean: "^(is|has)_[a-z0-9_]+$"
+audit_allowed: [_ingested_at, _source_file, _batch_id, _record_hash, _is_current, _effective_from, _effective_to]

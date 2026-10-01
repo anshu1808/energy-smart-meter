@@ -1,7 +1,15 @@
-from pyspark.shell import spark
-import requests
+import sys
 from datetime import datetime, timezone
-from pyspark.sql.functions import col, current_timestamp, lit
+from pathlib import Path
+
+import requests
+from pyspark.shell import spark
+from pyspark.sql.functions import current_timestamp, lit
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common.config import get_catalog  # noqa: E402
+
+catalog = get_catalog()
 
 LATITUDE = 52.52
 LONGITUDE = 13.41
@@ -36,22 +44,16 @@ def get_pipeline_start_ts():
 
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
+
 def get_last_pipeline_start_ts():
     """Use the last completed pipeline start as the EIA API watermark."""
-    audit_table = "energy.audit.pipeline_lineage"
+    audit_table = f"{catalog}.audit.pipeline_lineage"
     if not spark.catalog.tableExists(audit_table):
         return None
 
-    audit_columns = {
-        field.name
-        for field in spark.table(audit_table).schema.fields
-    }
+    audit_columns = {field.name for field in spark.table(audit_table).schema.fields}
     timestamp_column = (
-        "pipeline_start_ts"
-        if "pipeline_start_ts" in audit_columns
-        else "run_ts"
-        if "run_ts" in audit_columns
-        else None
+        "pipeline_start_ts" if "pipeline_start_ts" in audit_columns else "run_ts" if "run_ts" in audit_columns else None
     )
     if timestamp_column is None:
         return None
@@ -62,6 +64,7 @@ def get_last_pipeline_start_ts():
         .first()["pipeline_start_ts"]
     )
     return watermark
+
 
 pipeline_start_ts = get_pipeline_start_ts()
 last_pipeline_start_ts = get_last_pipeline_start_ts()
@@ -92,13 +95,15 @@ data = response.json()
 records = []
 
 for i in range(len(data["hourly"]["time"])):
-    records.append({
-        "timestamp": data["hourly"]["time"][i],
-        "temperature": data["hourly"]["temperature_2m"][i],
-        "humidity": data["hourly"]["relative_humidity_2m"][i],
-        "wind_speed": data["hourly"]["wind_speed_10m"][i],
-        "precipitation": data["hourly"]["precipitation"][i]
-    })
+    records.append(
+        {
+            "timestamp": data["hourly"]["time"][i],
+            "temperature": data["hourly"]["temperature_2m"][i],
+            "humidity": data["hourly"]["relative_humidity_2m"][i],
+            "wind_speed": data["hourly"]["wind_speed_10m"][i],
+            "precipitation": data["hourly"]["precipitation"][i],
+        }
+    )
 
 load_ts = datetime.now().strftime("%Y%m%d_%H%M%S")
 weather_df = (
@@ -108,12 +113,6 @@ weather_df = (
     .withColumn("_load_id", lit(load_ts))
 )
 
-(
-    weather_df.write
-    .mode("append")
-    .parquet(
-        f"/Volumes/energy/bronze/raw/weather/weather_{load_ts}"
-    )
-)
+(weather_df.write.mode("append").parquet(f"/Volumes/energy/bronze/raw/weather/weather_{load_ts}"))
 
 print("Weather raw snapshot written successfully")

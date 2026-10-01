@@ -1,0 +1,7 @@
+pytest
+pytest-cov
+ruff
+black
+pyyaml
+databricks-sdk
+databricks-sql-connector

@@ -267,7 +267,7 @@ Gold tables are created if missing and otherwise updated with Delta `MERGE` usin
 
 ## 9. Data Quality and Schema Drift
 
-Data-quality logic is currently duplicated in `src/bronze/data_quality.py`, `src/silver/data_quality.py`, and `src/gold/data_quality.py`. Bronze and Silver jobs generally import their layer-local helper, while Gold jobs import the Gold-local helper.
+Shared data-quality, schema-drift, and configuration utilities live in `src/common/`. Bronze, Silver, and Gold jobs import the common helpers instead of keeping layer-local copies.
 
 Supported checks include:
 
