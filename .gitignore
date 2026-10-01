@@ -31,3 +31,4 @@ configuration*.txt
 test.txt
 "ql -Recurse"
 ql*Recurse*
+.coverage
