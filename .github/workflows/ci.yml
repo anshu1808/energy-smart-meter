@@ -45,6 +45,11 @@ jobs:
       - name: Unit tests
         run: pytest -q --cov=ci --cov=scripts --cov-report=term-missing
 
+      - name: Debug auth vars
+        run: |
+          echo "HOST_SET=${{ secrets.DATABRICKS_HOST != '' }}"
+          echo "TOKEN_SET=${{ secrets.DATABRICKS_TOKEN != '' }}"
+
   bundle-validate:
     runs-on: ubuntu-latest
     environment: dev            # gives the job the dev secrets
