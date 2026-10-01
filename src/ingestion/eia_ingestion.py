@@ -106,7 +106,7 @@ def get_last_pipeline_start_ts():
 # CONSTANTS
 # =====================================================
 
-RAW_EIA_PATH = "/Volumes/energy/bronze/raw/eia"
+RAW_EIA_PATH = f"/Volumes/{catalog}/bronze/raw/eia"
 
 API_URL = "https://api.eia.gov/v2/electricity/" "rto/region-data/data/"
 

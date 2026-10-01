@@ -16,7 +16,7 @@ catalog = get_catalog()
 df = (
     spark.read.option("recursiveFileLookup", "true")
     .option("mergeSchema", "true")
-    .parquet("/Volumes/energy/bronze/raw/weather/")
+    .parquet(f"/Volumes/{catalog}/bronze/raw/weather/")
 )
 
 bronze_df = (

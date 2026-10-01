@@ -25,3 +25,9 @@ gitleaks-report.json
 datasets/*
 !datasets/README.md
 *.csv
+# fixes
+cofiguration.txt
+configuration*.txt
+test.txt
+"ql -Recurse"
+ql*Recurse*

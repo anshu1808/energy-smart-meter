@@ -17,7 +17,7 @@ spark = SparkSession.builder.getOrCreate()
 eia_df = (
     spark.read.option("recursiveFileLookup", "true")
     .option("pathGlobFilter", "*.parquet")
-    .parquet("/Volumes/energy/bronze/raw/eia")
+    .parquet(f"/Volumes/{catalog}/bronze/raw/eia")
     .withColumn("load_ts", current_timestamp())
     .withColumn("source_system", lit("EIA_API"))
     .withColumn("source_file", col("_metadata.file_path"))

@@ -15,12 +15,12 @@ catalog = get_catalog()
 
 spark = SparkSession.builder.getOrCreate()
 
-tariff_pd = pd.read_excel("/Volumes/energy/bronze/raw/tariff/Tariffs.xlsx")
+tariff_pd = pd.read_excel(f"/Volumes/{catalog}/bronze/raw/tariff/Tariffs.xlsx")
 tariff_df = (
     spark.createDataFrame(tariff_pd)
     .withColumn("load_ts", current_timestamp())
     .withColumn("source_system", lit("TARIFF_FILE"))
-    .withColumn("source_file", lit("/Volumes/energy/bronze/raw/tariff/Tariffs.xlsx"))
+    .withColumn("source_file", lit(f"/Volumes/{catalog}/bronze/raw/tariff/Tariffs.xlsx"))
     .withColumn("source_file_name", lit("Tariffs.xlsx"))
     .withColumn("source_file_size", lit(None).cast("long"))
     .withColumn(

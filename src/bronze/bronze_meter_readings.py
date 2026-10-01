@@ -19,7 +19,7 @@ TARGET_TABLE = f"{catalog}.bronze.bronze_meter_readings"
 # READ RAW SOURCE
 # ==========================================
 
-meter_df = spark.read.option("header", True).csv("/Volumes/energy/bronze/raw/meter_readings/*.csv")
+meter_df = spark.read.option("header", True).csv(f"/Volumes/{catalog}/bronze/raw/meter_readings/*.csv")
 
 meter_df = meter_df.withColumnRenamed("KWH/hh (per half hour) ", "kwh_hh")
 
