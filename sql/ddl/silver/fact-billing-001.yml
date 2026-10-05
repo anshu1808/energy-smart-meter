@@ -1,0 +1,45 @@
+databaseChangeLog:
+  - changeSet:
+      id: fact-billing-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing fact_billing table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: fact_billing
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_billing
+            columns:
+              - column: { name: billing_business_key, type: STRING }
+              - column: { name: bill_id, type: STRING }
+              - column: { name: customer_key, type: BIGINT }
+              - column: { name: meter_key, type: INT }
+              - column: { name: tariff_key, type: INT }
+              - column: { name: tariff_id, type: STRING }
+              - column: { name: customer_id, type: STRING }
+              - column: { name: meter_id, type: STRING }
+              - column: { name: billing_period, type: STRING }
+              - column: { name: consumption_kwh, type: DOUBLE }
+              - column: { name: rate_per_kwh, type: DOUBLE }
+              - column: { name: bill_amount, type: DOUBLE }
+              - column: { name: billing_status, type: STRING }
+              - column: { name: region, type: STRING }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: source_system, type: STRING }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_billing

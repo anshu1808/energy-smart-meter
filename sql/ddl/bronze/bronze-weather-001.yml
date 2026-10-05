@@ -1,0 +1,82 @@
+databaseChangeLog:
+  - changeSet:
+      id: bronze-weather-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing bronze_weather table
+      labels: bronze,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: bronze
+                tableName: bronze_weather
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: bronze
+            tableName: bronze_weather
+            columns:
+              - column:
+                  name: humidity
+                  type: BIGINT
+              - column:
+                  name: precipitation
+                  type: DOUBLE
+              - column:
+                  name: temperature
+                  type: DOUBLE
+              - column:
+                  name: timestamp
+                  type: STRING
+              - column:
+                  name: wind_speed
+                  type: DOUBLE
+              - column:
+                  name: _source_system
+                  type: STRING
+              - column:
+                  name: _ingestion_ts
+                  type: TIMESTAMP
+              - column:
+                  name: _load_id
+                  type: STRING
+              - column:
+                  name: load_timestamp
+                  type: TIMESTAMP
+              - column:
+                  name: load_ts
+                  type: TIMESTAMP
+              - column:
+                  name: source_system
+                  type: STRING
+              - column:
+                  name: source_file
+                  type: STRING
+              - column:
+                  name: source_file_name
+                  type: STRING
+              - column:
+                  name: source_file_size
+                  type: BIGINT
+              - column:
+                  name: source_file_modification_time
+                  type: TIMESTAMP
+              - column:
+                  name: schema_drift_detected
+                  type: BOOLEAN
+              - column:
+                  name: schema_drift_columns
+                  type: STRING
+              - column:
+                  name: dq_passed
+                  type: BOOLEAN
+              - column:
+                  name: dq_failed_checks
+                  type: STRING
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: bronze
+            tableName: bronze_weather

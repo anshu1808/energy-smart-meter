@@ -1,0 +1,41 @@
+databaseChangeLog:
+  - changeSet:
+      id: dim-meter-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing dim_meter table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: dim_meter
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dim_meter
+            columns:
+              - column: { name: meter_key, type: INT }
+              - column: { name: meter_id, type: STRING }
+              - column: { name: LCLid, type: STRING }
+              - column: { name: stdorToU, type: STRING }
+              - column: { name: DateTime, type: STRING }
+              - column: { name: kwh_hh, type: STRING }
+              - column: { name: meter_type, type: STRING }
+              - column: { name: manufacturer, type: STRING }
+              - column: { name: status, type: STRING }
+              - column: { name: install_date, type: STRING }
+              - column: { name: region, type: STRING }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dim_meter

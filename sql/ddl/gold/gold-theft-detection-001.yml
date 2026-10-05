@@ -1,0 +1,38 @@
+databaseChangeLog:
+  - changeSet:
+      id: gold-theft-detection-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing gold_theft_detection table
+      labels: gold,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: gold
+                tableName: gold_theft_detection
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: gold
+            tableName: gold_theft_detection
+            columns:
+              - column: { name: billing_period, type: STRING }
+              - column: { name: tariff_id, type: STRING }
+              - column: { name: customer_key, type: BIGINT }
+              - column: { name: LCLid, type: STRING }
+              - column: { name: consumption_kwh, type: DOUBLE }
+              - column: { name: peer_avg_consumption_kwh, type: DOUBLE }
+              - column: { name: peer_stddev_consumption_kwh, type: DOUBLE }
+              - column: { name: variance_from_peer_kwh, type: DOUBLE }
+              - column: { name: theft_flag, type: BOOLEAN }
+              - column: { name: detection_reason, type: STRING }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: gold
+            tableName: gold_theft_detection

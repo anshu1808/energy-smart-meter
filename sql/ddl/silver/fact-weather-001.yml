@@ -1,0 +1,38 @@
+databaseChangeLog:
+  - changeSet:
+      id: fact-weather-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing fact_weather table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: fact_weather
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_weather
+            columns:
+              - column: { name: weather_business_key, type: STRING }
+              - column: { name: date_key, type: INT }
+              - column: { name: weather_timestamp, type: TIMESTAMP }
+              - column: { name: hour_of_day, type: INT }
+              - column: { name: temperature_c, type: DOUBLE }
+              - column: { name: humidity_pct, type: DOUBLE }
+              - column: { name: wind_speed_kmh, type: DOUBLE }
+              - column: { name: precipitation_mm, type: DOUBLE }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_weather

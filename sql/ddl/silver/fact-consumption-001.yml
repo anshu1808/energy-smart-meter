@@ -1,0 +1,37 @@
+databaseChangeLog:
+  - changeSet:
+      id: fact-consumption-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing fact_consumption table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: fact_consumption
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_consumption
+            columns:
+              - column: { name: consumption_business_key, type: STRING }
+              - column: { name: customer_key, type: BIGINT }
+              - column: { name: meter_key, type: INT }
+              - column: { name: date_key, type: INT }
+              - column: { name: reading_timestamp, type: STRING }
+              - column: { name: consumption_kwh, type: DOUBLE }
+              - column: { name: region, type: STRING }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_consumption
