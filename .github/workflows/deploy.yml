@@ -31,9 +31,23 @@ jobs:
         with: { python-version: "3.11" }
       - run: pip install databricks-sql-connector databricks-sdk pyyaml
 
+      - name: Validate deployment configuration
+        run: |
+          test -n "$DBX_HOST" || { echo "ERROR: DBX_HOST is empty"; exit 1; }
+          test -n "$DBX_WAREHOUSE_ID" || { echo "ERROR: DBX_WAREHOUSE_ID is empty"; exit 1; }
+          test -n "$DBX_SP_CLIENT_ID" || { echo "ERROR: DBX_SP_CLIENT_ID is empty"; exit 1; }
+          test -n "$DBX_SP_SECRET" || { echo "ERROR: DBX_SP_SECRET is empty"; exit 1; }
+          test -n "$CATALOG" || { echo "ERROR: CATALOG is empty"; exit 1; }
+
+          echo "DBX_HOST is configured"
+          echo "DBX_WAREHOUSE_ID is configured"
+          echo "DBX_SP_CLIENT_ID is configured"
+          echo "DBX_SP_SECRET is configured"
+          echo "CATALOG=$CATALOG"
+
       # 1) Tables first (DBCR), so jobs/pipelines never run against a missing table.
       - uses: liquibase/setup-liquibase@v3
-        with: { version: "5.0.3", edition: "community" }
+        with: { version: "5.0.4", edition: "community" }
       - name: Install Databricks extension + JDBC driver
         run: |
           liquibase lpm add liquibase-databricks --global || true
