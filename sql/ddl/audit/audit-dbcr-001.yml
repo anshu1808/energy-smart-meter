@@ -1,8 +1,8 @@
 # DBCR audit table: one row per applied changeset (written by ci/record_dbcr.py).
-# Prerequisite: catalog ${energy_catalog} and schema audit already exist (audit exists today: energy.audit).
+# Prerequisite: catalog ${energy_catalog} and schema audit already exist.
 databaseChangeLog:
   - changeSet:
-      id: 2026.09.001-create-audit-dbcr
+      id: audit-dbcr-001
       author: anshu
       labels: ddl,create,audit
       context: all

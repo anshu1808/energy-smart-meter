@@ -1,0 +1,55 @@
+databaseChangeLog:
+  - changeSet:
+      id: bronze-meter-readings-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing bronze_meter_readings table
+      labels: bronze,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: bronze
+                tableName: bronze_meter_readings
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: bronze
+            tableName: bronze_meter_readings
+            columns:
+              - column:
+                  name: LCLid
+                  type: STRING
+              - column:
+                  name: stdorToU
+                  type: STRING
+              - column:
+                  name: DateTime
+                  type: STRING
+              - column:
+                  name: kwh_hh
+                  type: STRING
+              - column:
+                  name: load_ts
+                  type: TIMESTAMP
+              - column:
+                  name: source_system
+                  type: STRING
+              - column:
+                  name: schema_drift_detected
+                  type: BOOLEAN
+              - column:
+                  name: schema_drift_columns
+                  type: STRING
+              - column:
+                  name: dq_passed
+                  type: BOOLEAN
+              - column:
+                  name: dq_failed_checks
+                  type: STRING
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: bronze
+            tableName: bronze_meter_readings

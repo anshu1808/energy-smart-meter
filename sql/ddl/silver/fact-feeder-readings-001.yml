@@ -1,0 +1,39 @@
+databaseChangeLog:
+  - changeSet:
+      id: fact-feeder-readings-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing fact_feeder_readings table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: fact_feeder_readings
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_feeder_readings
+            columns:
+              - column: { name: feeder_id, type: STRING }
+              - column: { name: substation_id, type: STRING }
+              - column: { name: reading_timestamp, type: TIMESTAMP }
+              - column: { name: reading_date, type: DATE }
+              - column: { name: reading_hour, type: INT }
+              - column: { name: voltage_v, type: DOUBLE }
+              - column: { name: current_a, type: DOUBLE }
+              - column: { name: active_power_kw, type: DOUBLE }
+              - column: { name: source_system, type: STRING }
+              - column: { name: processed_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_feeder_readings

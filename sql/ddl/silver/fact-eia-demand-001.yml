@@ -1,0 +1,40 @@
+databaseChangeLog:
+  - changeSet:
+      id: fact-eia-demand-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing fact_eia_demand table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: fact_eia_demand
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_eia_demand
+            columns:
+              - column: { name: demand_business_key, type: STRING }
+              - column: { name: date_key, type: INT }
+              - column: { name: respondent, type: STRING }
+              - column: { name: respondent_name, type: STRING }
+              - column: { name: type, type: STRING }
+              - column: { name: type_name, type: STRING }
+              - column: { name: value_units, type: STRING }
+              - column: { name: demand_timestamp, type: TIMESTAMP }
+              - column: { name: hour_of_day, type: INT }
+              - column: { name: demand_mwh, type: DOUBLE }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: fact_eia_demand

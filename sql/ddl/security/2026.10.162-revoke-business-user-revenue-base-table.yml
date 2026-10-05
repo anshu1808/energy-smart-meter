@@ -1,0 +1,24 @@
+# SECURITY FIX: manually, business users were granted the BASE table, where revenue is unmasked, so the view masking could be bypassed.
+# Delete this file before merging if you do not want to change prod access.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.162-revoke-business-user-revenue-base-table
+      author: anshu
+      labels: dcl,security,revoke
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Remove direct base-table revenue access from business users"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              REVOKE SELECT ON TABLE ${energy_catalog}.gold.gold_revenue_summary FROM `energy_business_user`;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              GRANT SELECT ON TABLE ${energy_catalog}.gold.gold_revenue_summary TO `energy_business_user`;

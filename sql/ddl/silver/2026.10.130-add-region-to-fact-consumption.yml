@@ -1,0 +1,29 @@
+# Idempotent: skipped (MARK_RAN) wherever the column already exists, e.g. prod, or a fresh env whose baseline already includes it.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.130-add-region-to-fact-consumption
+      author: anshu
+      labels: ddl,alter,silver
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Add region column to silver.fact_consumption"
+      preConditions:
+        - onFail: MARK_RAN
+        - sqlCheck:
+            expectedResult: "0"
+            sql: >
+              SELECT COUNT(*) FROM ${energy_catalog}.information_schema.columns WHERE table_schema = 'silver' AND table_name = 'fact_consumption' AND column_name = 'region'
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.fact_consumption ADD COLUMN region STRING;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.fact_consumption DROP COLUMN region;
