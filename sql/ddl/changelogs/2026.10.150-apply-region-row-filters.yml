@@ -1,0 +1,30 @@
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.150-apply-region-row-filters
+      author: anshu
+      labels: dcl,security,rowfilter
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Apply region row filters"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.dim_customer SET ROW FILTER ${energy_catalog}.security.region_filter ON (region);
+              ALTER TABLE ${energy_catalog}.silver.dim_meter SET ROW FILTER ${energy_catalog}.security.region_filter ON (region);
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff SET ROW FILTER ${energy_catalog}.security.region_filter ON (region);
+              ALTER TABLE ${energy_catalog}.silver.fact_consumption SET ROW FILTER ${energy_catalog}.security.region_filter ON (region);
+              ALTER TABLE ${energy_catalog}.silver.fact_billing SET ROW FILTER ${energy_catalog}.security.region_filter ON (region);
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.dim_customer DROP ROW FILTER;
+              ALTER TABLE ${energy_catalog}.silver.dim_meter DROP ROW FILTER;
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff DROP ROW FILTER;
+              ALTER TABLE ${energy_catalog}.silver.fact_consumption DROP ROW FILTER;
+              ALTER TABLE ${energy_catalog}.silver.fact_billing DROP ROW FILTER;

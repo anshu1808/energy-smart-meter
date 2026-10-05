@@ -1,0 +1,23 @@
+# Landing zone for source files (meter CSV, tariff xlsx, weather/eia json). Needs CREATE VOLUME on bronze for the deploy principal.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.100-create-bronze-raw-volume
+      author: anshu
+      labels: ddl,create,volume
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Create raw landing volume"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              CREATE VOLUME IF NOT EXISTS ${energy_catalog}.bronze.raw;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              DROP VOLUME IF EXISTS ${energy_catalog}.bronze.raw;
