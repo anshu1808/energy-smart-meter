@@ -1,0 +1,32 @@
+# Prerequisite: schema ${energy_catalog}.security exists (scripts/bootstrap_environment.py). Runtime principals MUST be in group energy_data_engineer, see docs/LIQUIBASE.md.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.120-create-security-mask-functions
+      author: anshu
+      labels: ddl,security,function
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Column mask functions"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              CREATE OR REPLACE FUNCTION ${energy_catalog}.security.mask_customer_id(customer_id STRING)
+              RETURN CASE WHEN is_account_group_member('energy_data_engineer') THEN customer_id ELSE '********' END;
+
+              CREATE OR REPLACE FUNCTION ${energy_catalog}.security.mask_lclid(lclid STRING)
+              RETURN CASE WHEN is_account_group_member('energy_data_engineer') THEN lclid ELSE '********' END;
+
+              CREATE OR REPLACE FUNCTION ${energy_catalog}.security.mask_financial_value(val DOUBLE)
+              RETURN CASE WHEN is_account_group_member('energy_data_engineer') OR is_account_group_member('energy_data_analyst') THEN val ELSE NULL END;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              DROP FUNCTION IF EXISTS ${energy_catalog}.security.mask_customer_id;
+              DROP FUNCTION IF EXISTS ${energy_catalog}.security.mask_lclid;
+              DROP FUNCTION IF EXISTS ${energy_catalog}.security.mask_financial_value;

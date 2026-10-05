@@ -1,0 +1,29 @@
+# Business users get the MASKED view instead of the base revenue table (see 162).
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.161-grants-business-user
+      author: anshu
+      labels: dcl,grant
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Business user access via secure view"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              GRANT USE CATALOG ON CATALOG ${energy_catalog} TO `energy_business_user`;
+              GRANT USE SCHEMA ON SCHEMA ${energy_catalog}.gold TO `energy_business_user`;
+              GRANT SELECT ON TABLE ${energy_catalog}.gold.v_revenue_summary_secure TO `energy_business_user`;
+              GRANT SELECT ON TABLE ${energy_catalog}.gold.gold_peak_load TO `energy_business_user`;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              REVOKE SELECT ON TABLE ${energy_catalog}.gold.gold_peak_load FROM `energy_business_user`;
+              REVOKE SELECT ON TABLE ${energy_catalog}.gold.v_revenue_summary_secure FROM `energy_business_user`;
+              REVOKE USE SCHEMA ON SCHEMA ${energy_catalog}.gold FROM `energy_business_user`;
+              REVOKE USE CATALOG ON CATALOG ${energy_catalog} FROM `energy_business_user`;

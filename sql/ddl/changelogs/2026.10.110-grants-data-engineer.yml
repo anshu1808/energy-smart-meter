@@ -1,0 +1,35 @@
+# FIX vs manual SQL: USE SCHEMA is now granted on silver and gold too (previously only bronze, so engineers could not open them).
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.110-grants-data-engineer
+      author: anshu
+      labels: dcl,grant
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Data engineer access to bronze/silver/gold"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              GRANT USE CATALOG ON CATALOG ${energy_catalog} TO `energy_data_engineer`;
+              GRANT USE SCHEMA ON SCHEMA ${energy_catalog}.bronze TO `energy_data_engineer`;
+              GRANT SELECT, MODIFY, CREATE TABLE ON SCHEMA ${energy_catalog}.bronze TO `energy_data_engineer`;
+              GRANT USE SCHEMA ON SCHEMA ${energy_catalog}.silver TO `energy_data_engineer`;
+              GRANT SELECT, MODIFY, CREATE TABLE ON SCHEMA ${energy_catalog}.silver TO `energy_data_engineer`;
+              GRANT USE SCHEMA ON SCHEMA ${energy_catalog}.gold TO `energy_data_engineer`;
+              GRANT SELECT, MODIFY, CREATE TABLE ON SCHEMA ${energy_catalog}.gold TO `energy_data_engineer`;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              REVOKE USE CATALOG ON CATALOG ${energy_catalog} FROM `energy_data_engineer`;
+              REVOKE SELECT, MODIFY, CREATE TABLE ON SCHEMA ${energy_catalog}.bronze FROM `energy_data_engineer`;
+              REVOKE USE SCHEMA ON SCHEMA ${energy_catalog}.bronze FROM `energy_data_engineer`;
+              REVOKE SELECT, MODIFY, CREATE TABLE ON SCHEMA ${energy_catalog}.silver FROM `energy_data_engineer`;
+              REVOKE USE SCHEMA ON SCHEMA ${energy_catalog}.silver FROM `energy_data_engineer`;
+              REVOKE SELECT, MODIFY, CREATE TABLE ON SCHEMA ${energy_catalog}.gold FROM `energy_data_engineer`;
+              REVOKE USE SCHEMA ON SCHEMA ${energy_catalog}.gold FROM `energy_data_engineer`;

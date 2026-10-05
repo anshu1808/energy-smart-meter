@@ -2,6 +2,7 @@ pytest
 pytest-cov
 ruff
 black
+sqlfluff
 pyyaml
 databricks-sdk
 databricks-sql-connector

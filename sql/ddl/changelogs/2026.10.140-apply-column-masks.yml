@@ -1,0 +1,37 @@
+# Needs table ownership or MANAGE for the deploy principal. Mask column types must match the function argument type (DOUBLE for the financial columns).
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.140-apply-column-masks
+      author: anshu
+      labels: dcl,security,mask
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Apply column masks to PII and financial columns"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.dim_customer ALTER COLUMN customer_id SET MASK ${energy_catalog}.security.mask_customer_id;
+              ALTER TABLE ${energy_catalog}.silver.dim_customer ALTER COLUMN LCLid SET MASK ${energy_catalog}.security.mask_lclid;
+              ALTER TABLE ${energy_catalog}.silver.dim_meter ALTER COLUMN LCLid SET MASK ${energy_catalog}.security.mask_lclid;
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff ALTER COLUMN rate_per_kwh SET MASK ${energy_catalog}.security.mask_financial_value;
+              ALTER TABLE ${energy_catalog}.silver.fact_billing ALTER COLUMN customer_id SET MASK ${energy_catalog}.security.mask_customer_id;
+              ALTER TABLE ${energy_catalog}.silver.fact_billing ALTER COLUMN bill_amount SET MASK ${energy_catalog}.security.mask_financial_value;
+              ALTER TABLE ${energy_catalog}.silver.fact_billing ALTER COLUMN rate_per_kwh SET MASK ${energy_catalog}.security.mask_financial_value;
+              ALTER TABLE ${energy_catalog}.gold.gold_theft_detection ALTER COLUMN LCLid SET MASK ${energy_catalog}.security.mask_lclid;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.dim_customer ALTER COLUMN customer_id DROP MASK;
+              ALTER TABLE ${energy_catalog}.silver.dim_customer ALTER COLUMN LCLid DROP MASK;
+              ALTER TABLE ${energy_catalog}.silver.dim_meter ALTER COLUMN LCLid DROP MASK;
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff ALTER COLUMN rate_per_kwh DROP MASK;
+              ALTER TABLE ${energy_catalog}.silver.fact_billing ALTER COLUMN customer_id DROP MASK;
+              ALTER TABLE ${energy_catalog}.silver.fact_billing ALTER COLUMN bill_amount DROP MASK;
+              ALTER TABLE ${energy_catalog}.silver.fact_billing ALTER COLUMN rate_per_kwh DROP MASK;
+              ALTER TABLE ${energy_catalog}.gold.gold_theft_detection ALTER COLUMN LCLid DROP MASK;
