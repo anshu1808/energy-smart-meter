@@ -1,16 +1,15 @@
-﻿# ============================================================
+# ============================================================
 # ENERGY SMART METER - LIQUIBASE CONFIGURATION TEMPLATE
 # ============================================================
 #
-# This file contains NO secrets.
+# No secrets are stored in this file.
 #
-# CI/CD or local environment variables provide:
+# CI/CD provides:
 #
 # CATALOG
 # DBX_HOST
 # DBX_WAREHOUSE_ID
-# DBX_SP_CLIENT_ID
-# DBX_SP_SECRET
+# DATABRICKS_TOKEN
 #
 # ============================================================
 
@@ -18,6 +17,6 @@ changelogFile: changelog-master.yml
 
 parameter.energy_catalog: ${CATALOG}
 
-url: jdbc:databricks://${DBX_HOST}:443/default;transportMode=http;ssl=1;httpPath=/sql/1.0/warehouses/${DBX_WAREHOUSE_ID};AuthMech=11;Auth_Flow=1;OAuth2ClientId=${DBX_SP_CLIENT_ID};OAuth2Secret=${DBX_SP_SECRET};ConnCatalog=${CATALOG};ConnSchema=liquibase
+url: jdbc:databricks://${DBX_HOST}:443/default;transportMode=http;ssl=1;httpPath=/sql/1.0/warehouses/${DBX_WAREHOUSE_ID};AuthMech=3;UID=token;PWD=${DATABRICKS_TOKEN};ConnCatalog=${CATALOG};ConnSchema=liquibase
 
 liquibase.hub.mode: off
