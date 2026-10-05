@@ -1,0 +1,27 @@
+# Order matters: disable deletion vectors, column mapping, purge, THEN IcebergCompatV2. Column mapping cannot be reverted by rollback.
+# NOTE: this only makes the table compatible; exposing Iceberg metadata also needs delta.universalFormat.enabledFormats.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.170-enable-iceberg-compat-dim-tariff
+      author: anshu
+      labels: ddl,alter,silver
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Iceberg compatibility on silver.dim_tariff"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff SET TBLPROPERTIES ('delta.enableDeletionVectors' = 'false');
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name');
+              REORG TABLE ${energy_catalog}.silver.dim_tariff APPLY (PURGE);
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff SET TBLPROPERTIES ('delta.enableIcebergCompatV2' = 'true');
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              ALTER TABLE ${energy_catalog}.silver.dim_tariff SET TBLPROPERTIES ('delta.enableIcebergCompatV2' = 'false');

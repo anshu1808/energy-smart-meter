@@ -1,0 +1,33 @@
+# Runs only while rows with NULL region exist. Not reversible (rollback is a no-op). New rows get region from the pipeline code.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.132-backfill-region-fact-consumption
+      author: anshu
+      labels: dml,backfill,silver
+      context: all
+      runInTransaction: false
+      comment: "WI-5 One-time region backfill for silver.fact_consumption"
+      preConditions:
+        - onFail: MARK_RAN
+        - onError: MARK_RAN
+        - sqlCheck:
+            expectedResult: "1"
+            sql: >
+              SELECT CASE WHEN COUNT(*) > 0 THEN 1 ELSE 0 END FROM ${energy_catalog}.silver.fact_consumption WHERE region IS NULL
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              MERGE INTO ${energy_catalog}.silver.fact_consumption AS f
+              USING ${energy_catalog}.silver.dim_customer AS dc
+              ON f.customer_key = dc.customer_key
+              WHEN MATCHED AND f.region IS NULL THEN UPDATE SET f.region = dc.region;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              SELECT 1;

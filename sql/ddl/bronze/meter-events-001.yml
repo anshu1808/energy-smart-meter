@@ -1,0 +1,58 @@
+databaseChangeLog:
+  - changeSet:
+      id: meter-events-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing bronze_meter_events table
+      labels: bronze,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: bronze
+                tableName: bronze_meter_events
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: bronze
+            tableName: bronze_meter_events
+            columns:
+              - column:
+                  name: event_id
+                  type: STRING
+              - column:
+                  name: LCLid
+                  type: STRING
+              - column:
+                  name: event_type
+                  type: STRING
+              - column:
+                  name: severity
+                  type: STRING
+              - column:
+                  name: event_timestamp
+                  type: TIMESTAMP
+              - column:
+                  name: load_ts
+                  type: TIMESTAMP
+              - column:
+                  name: source_system
+                  type: STRING
+              - column:
+                  name: schema_drift_detected
+                  type: BOOLEAN
+              - column:
+                  name: schema_drift_columns
+                  type: STRING
+              - column:
+                  name: dq_passed
+                  type: BOOLEAN
+              - column:
+                  name: dq_failed_checks
+                  type: STRING
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: bronze
+            tableName: bronze_meter_events

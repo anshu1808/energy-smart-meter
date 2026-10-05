@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.111-grants-data-analyst
+      author: anshu
+      labels: dcl,grant
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Data analyst read access to gold"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              GRANT USE CATALOG ON CATALOG ${energy_catalog} TO `energy_data_analyst`;
+              GRANT USE SCHEMA ON SCHEMA ${energy_catalog}.gold TO `energy_data_analyst`;
+              GRANT SELECT ON SCHEMA ${energy_catalog}.gold TO `energy_data_analyst`;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              REVOKE SELECT ON SCHEMA ${energy_catalog}.gold FROM `energy_data_analyst`;
+              REVOKE USE SCHEMA ON SCHEMA ${energy_catalog}.gold FROM `energy_data_analyst`;
+              REVOKE USE CATALOG ON CATALOG ${energy_catalog} FROM `energy_data_analyst`;

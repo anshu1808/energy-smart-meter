@@ -1,0 +1,35 @@
+databaseChangeLog:
+  - changeSet:
+      id: gold-peak-load-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing gold_peak_load table
+      labels: gold,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: gold
+                tableName: gold_peak_load
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: gold
+            tableName: gold_peak_load
+            columns:
+              - column: { name: date_key, type: INT }
+              - column: { name: reading_date, type: STRING }
+              - column: { name: hour_of_day, type: INT }
+              - column: { name: reading_count, type: BIGINT }
+              - column: { name: total_consumption_kwh, type: DOUBLE }
+              - column: { name: avg_consumption_kwh, type: DOUBLE }
+              - column: { name: max_meter_consumption_kwh, type: DOUBLE }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: gold
+            tableName: gold_peak_load

@@ -1,0 +1,32 @@
+databaseChangeLog:
+  - changeSet:
+      id: dq-failures-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing dq_failures table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: dq_failures
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dq_failures
+            columns:
+              - column: { name: dq_table, type: STRING }
+              - column: { name: check_name, type: STRING }
+              - column: { name: check_type, type: STRING }
+              - column: { name: column_name, type: STRING }
+              - column: { name: failure_reason, type: STRING }
+              - column: { name: failed_value, type: BIGINT }
+              - column: { name: check_ts, type: TIMESTAMP }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dq_failures

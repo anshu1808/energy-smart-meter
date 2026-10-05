@@ -1,0 +1,27 @@
+# FIX vs manual SQL: added USE CATALOG / USE SCHEMA, without them the table grant alone gives no access.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.112-grants-hr
+      author: anshu
+      labels: dcl,grant
+      context: all
+      runInTransaction: false
+      comment: "WI-5 HR read access to dim_customer"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              GRANT USE CATALOG ON CATALOG ${energy_catalog} TO `energy_hr`;
+              GRANT USE SCHEMA ON SCHEMA ${energy_catalog}.silver TO `energy_hr`;
+              GRANT SELECT ON TABLE ${energy_catalog}.silver.dim_customer TO `energy_hr`;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              REVOKE SELECT ON TABLE ${energy_catalog}.silver.dim_customer FROM `energy_hr`;
+              REVOKE USE SCHEMA ON SCHEMA ${energy_catalog}.silver FROM `energy_hr`;
+              REVOKE USE CATALOG ON CATALOG ${energy_catalog} FROM `energy_hr`;

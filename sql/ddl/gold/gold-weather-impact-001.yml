@@ -1,0 +1,36 @@
+databaseChangeLog:
+  - changeSet:
+      id: gold-weather-impact-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing gold_weather_impact table
+      labels: gold,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: gold
+                tableName: gold_weather_impact
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: gold
+            tableName: gold_weather_impact
+            columns:
+              - column: { name: date_key, type: INT }
+              - column: { name: hour_of_day, type: INT }
+              - column: { name: temperature_c, type: DOUBLE }
+              - column: { name: humidity_pct, type: DOUBLE }
+              - column: { name: wind_speed_kmh, type: DOUBLE }
+              - column: { name: precipitation_mm, type: DOUBLE }
+              - column: { name: total_consumption_kwh, type: DOUBLE }
+              - column: { name: avg_meter_consumption_kwh, type: DOUBLE }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: gold
+            tableName: gold_weather_impact
