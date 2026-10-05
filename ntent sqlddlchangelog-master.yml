@@ -1,0 +1,31 @@
+[35m.github/workflows/ci.yml[m[36m:[m      - uses: [1;31mliquibase[m/setup-[1;31mliquibase[m@v3
+[35m.github/workflows/ci.yml[m[36m:[m      # Package names: confirm with `[1;31mliquibase[m lpm search databricks` on first run.
+[35m.github/workflows/ci.yml[m[36m:[m          [1;31mliquibase[m lpm add [1;31mliquibase[m-databricks --global || true
+[35m.github/workflows/ci.yml[m[36m:[m          [1;31mliquibase[m lpm add databricks-jdbc --global || true
+[35m.github/workflows/ci.yml[m[36m:[m      - name: Render [1;31mliquibase[m.properties
+[35m.github/workflows/ci.yml[m[36m:[m          envsubst < [1;31mliquibase[m.properties.template > [1;31mliquibase[m.properties
+[35m.github/workflows/ci.yml[m[36m:[m        run: [1;31mliquibase[m updateSQL | tee plan.sql
+[35m.github/workflows/deploy.yml[m[36m:[m      - uses: [1;31mliquibase[m/setup-[1;31mliquibase[m@v3
+[35m.github/workflows/deploy.yml[m[36m:[m          [1;31mliquibase[m lpm add [1;31mliquibase[m-databricks --global || true
+[35m.github/workflows/deploy.yml[m[36m:[m          [1;31mliquibase[m lpm add databricks-jdbc --global || true
+[35m.github/workflows/deploy.yml[m[36m:[m      - name: Render [1;31mliquibase[m.properties
+[35m.github/workflows/deploy.yml[m[36m:[m          envsubst < [1;31mliquibase[m.properties.template > [1;31mliquibase[m.properties
+[35m.github/workflows/deploy.yml[m[36m:[m        run: [1;31mliquibase[m updateSQL | tee plan.sql
+[35m.github/workflows/deploy.yml[m[36m:[m        run: [1;31mliquibase[m update --contexts=all
+[35m.github/workflows/deploy.yml[m[36m:[m        run: [1;31mliquibase[m tag "${TARGET}-${GITHUB_SHA::7}"
+[35mci/check_branch_name.sh[m[36m:[m# Feature branches must be: feature/<WORK-ITEM-ID>-<kebab-case-text>   e.g. feature/12-add-[1;31mliquibase[m-dbcr
+[35mci/dbcr_guard.py[m[36m:[mci/dbcr_guard.py — runs on the output of `[1;31mliquibase[m updateSQL`.
+[35mci/dbcr_guard.py[m[36m:[mdef is_[1;31mliquibase[m_internal_statement(statement: str) -> bool:
+[35mci/dbcr_guard.py[m[36m:[m        if is_[1;31mliquibase[m_internal_statement(statement):
+[35mci/record_dbcr.py[m[36m:[mci/record_dbcr.py - after `[1;31mliquibase[m update`, write one business-readable row per
+[35mci/record_dbcr.py[m[36m:[mInput : plan.sql produced by `[1;31mliquibase[m updateSQL` BEFORE the update (it lists exactly
+[35mdocs/LIQUIBASE.md[m[36m:[m| Catalog `energy_dev` / `energy_qa` / `energy`, schemas `bronze silver gold audit security [1;31mliquibase[m` | **Admin, once** | `scripts/bootstrap_environment.py` (CI is blocked from `CREATE CATALOG/SCHEMA` on purpose) |
+[35mscripts/bootstrap_environment.py[m[36m:[mSCHEMAS = ["bronze", "silver", "gold", "audit", "security", "[1;31mliquibase[m"]
+[35msql/ddl/liquibase.properties.template[m[36m:[murl: jdbc:databricks://${DBX_HOST}:443/default;transportMode=http;ssl=1;httpPath=/sql/1.0/warehouses/${DBX_WAREHOUSE_ID};AuthMech=3;UID=token;PWD=${DATABRICKS_TOKEN};ConnCatalog=${CATALOG};ConnSchema=[1;31mliquibase[m
+[35msql/ddl/liquibase.properties.template[m[36m:[m[1;31mliquibase[m.hub.mode: off
+[35mtests/unit/test_bootstrap.py[m[36m:[m    assert {"security", "[1;31mliquibase[m", "audit"} <= set(SCHEMAS)
+[35mtests/unit/test_changelogs.py[m[36m:[m    text = (ROOT / "sql" / "ddl" / "[1;31mliquibase[m.properties.template").read_text(encoding="utf-8")
+[35mtests/unit/test_dbcr_guard.py[m[36m:[mdef test_[1;31mliquibase[m_bookkeeping_ignored():
+[35mtests/unit/test_record_dbcr.py[m[36m:[mdef test_real_[1;31mliquibase[m_plan_is_accepted_by_guard_and_parser():
+[35mtests/unit/test_record_dbcr.py[m[36m:[m    """tests/fixtures/[1;31mliquibase[m_plan_sample.sql is genuine `[1;31mliquibase[m updateSQL` output for sql/ddl."""
+[35mtests/unit/test_record_dbcr.py[m[36m:[m    plan = (root / "tests" / "fixtures" / "[1;31mliquibase[m_plan_sample.sql").read_text(encoding="utf-8")
