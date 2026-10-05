@@ -21,7 +21,7 @@ jobs:
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
       DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
       DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-      DBX_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DBX_HOST: ${{ secrets.DBX_HOST }}
       DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
