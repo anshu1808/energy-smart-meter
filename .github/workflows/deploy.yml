@@ -23,8 +23,7 @@ jobs:
       DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
       DBX_HOST: ${{ secrets.DATABRICKS_HOST }}
       DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
-      DBX_SP_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-      DBX_SP_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,14 +34,12 @@ jobs:
         run: |
           test -n "$DBX_HOST" || { echo "ERROR: DBX_HOST is empty"; exit 1; }
           test -n "$DBX_WAREHOUSE_ID" || { echo "ERROR: DBX_WAREHOUSE_ID is empty"; exit 1; }
-          test -n "$DBX_SP_CLIENT_ID" || { echo "ERROR: DBX_SP_CLIENT_ID is empty"; exit 1; }
-          test -n "$DBX_SP_SECRET" || { echo "ERROR: DBX_SP_SECRET is empty"; exit 1; }
+          test -n "$DATABRICKS_TOKEN" || { echo "ERROR: DATABRICKS_TOKEN is empty"; exit 1; }
           test -n "$CATALOG" || { echo "ERROR: CATALOG is empty"; exit 1; }
 
           echo "DBX_HOST is configured"
           echo "DBX_WAREHOUSE_ID is configured"
-          echo "DBX_SP_CLIENT_ID is configured"
-          echo "DBX_SP_SECRET is configured"
+          echo "DATABRICKS_TOKEN is configured"
           echo "CATALOG=$CATALOG"
 
       # 1) Tables first (DBCR), so jobs/pipelines never run against a missing table.
