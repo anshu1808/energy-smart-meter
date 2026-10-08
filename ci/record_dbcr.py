@@ -61,18 +61,13 @@ def parse_plan(plan_sql: str) -> list[dict]:
 def get_connection():
     # imported lazily so unit tests run without the connector installed
     from databricks import sql
-    from databricks.sdk.core import Config, oauth_service_principal
 
     host = os.environ["DBX_HOST"].replace("https://", "")
-    cfg = Config(
-        host=f"https://{host}",
-        client_id=os.environ["DBX_SP_CLIENT_ID"],
-        client_secret=os.environ["DBX_SP_SECRET"],
-    )
+
     return sql.connect(
         server_hostname=host,
         http_path=f"/sql/1.0/warehouses/{os.environ['DBX_WAREHOUSE_ID']}",
-        credentials_provider=lambda: oauth_service_principal(cfg),
+        access_token=os.environ["DATABRICKS_TOKEN"],
     )
 
 
