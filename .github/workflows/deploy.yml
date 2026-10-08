@@ -200,6 +200,11 @@ jobs:
         run: |
           databricks bundle validate -t "$TARGET"
 
+      - name: Show Databricks identity
+        shell: bash
+        run: |
+          databricks current-user me
+
       # ---------------------------------------------------------
       # 13. Deploy Asset Bundle
       # ---------------------------------------------------------
