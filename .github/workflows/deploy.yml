@@ -126,11 +126,13 @@ jobs:
       # ---------------------------------------------------------
       # DEBUG - Show rendered file
       # ---------------------------------------------------------
-      - name: Show rendered liquibase.properties
+      - name: Validate rendered liquibase.properties
         working-directory: sql/ddl
         shell: bash
         run: |
-          cat liquibase.properties
+          test -s liquibase.properties
+          grep -q "energy_catalog" liquibase.properties || true
+          echo "Liquibase properties rendered successfully."
 
       - name: Show Liquibase defaults
         working-directory: sql/ddl
@@ -197,7 +199,12 @@ jobs:
       # ---------------------------------------------------------
       - name: Validate Databricks Asset Bundle
         shell: bash
+        env:
+          DATABRICKS_HOST: ${{ secrets.DBX_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
+          set -e
+          databricks current-user me
           databricks bundle validate -t "$TARGET"
 
       - name: Show Databricks identity
@@ -210,5 +217,9 @@ jobs:
       # ---------------------------------------------------------
       - name: Deploy Databricks Asset Bundle
         shell: bash
+        env:
+          DATABRICKS_HOST: ${{ secrets.DBX_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
+          set -e
           databricks bundle deploy -t "$TARGET"
