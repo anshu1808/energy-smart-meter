@@ -1,0 +1,32 @@
+# Name kept as-is so consumers do not break. config/schema/conventions.yml prefers vw_; rename later via a new changeset.
+databaseChangeLog:
+  - changeSet:
+      id: 2026.10.160-create-secure-revenue-view
+      author: anshu
+      labels: ddl,create,view
+      context: all
+      runInTransaction: false
+      comment: "WI-5 Secure revenue summary view"
+      changes:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              CREATE OR REPLACE VIEW ${energy_catalog}.gold.v_revenue_summary_secure AS
+              SELECT
+                billing_period, customer_count, meter_count, total_consumption_kwh,
+                CASE WHEN is_account_group_member('energy_data_engineer') OR is_account_group_member('energy_data_analyst')
+                     THEN total_revenue ELSE NULL END AS total_revenue,
+                avg_consumption_kwh,
+                CASE WHEN is_account_group_member('energy_data_engineer') OR is_account_group_member('energy_data_analyst')
+                     THEN avg_bill_amount ELSE NULL END AS avg_bill_amount,
+                load_ts
+              FROM ${energy_catalog}.gold.gold_revenue_summary;
+      rollback:
+        - sql:
+            splitStatements: true
+            stripComments: true
+            endDelimiter: ";"
+            sql: |
+              DROP VIEW IF EXISTS ${energy_catalog}.gold.v_revenue_summary_secure;

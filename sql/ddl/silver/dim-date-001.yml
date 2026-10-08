@@ -1,0 +1,40 @@
+databaseChangeLog:
+  - changeSet:
+      id: dim-date-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing dim_date table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: dim_date
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dim_date
+            columns:
+              - column: { name: full_date, type: DATE }
+              - column: { name: date_key, type: INT }
+              - column: { name: year, type: INT }
+              - column: { name: quarter, type: INT }
+              - column: { name: month, type: INT }
+              - column: { name: month_name, type: STRING }
+              - column: { name: day, type: INT }
+              - column: { name: week_of_year, type: INT }
+              - column: { name: day_of_week, type: INT }
+              - column: { name: day_name, type: STRING }
+              - column: { name: is_weekend, type: BOOLEAN }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dim_date

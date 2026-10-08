@@ -1,10 +1,19 @@
 name: deploy
 
-# dev branch -> dev, qa branch -> qa, main branch -> prod.
-# In GitHub: Settings > Environments > prod > "Required reviewers" = the manual approval gate.
+# Branch → GitHub Environment
+# dev  → dev
+# qa   → qa
+# main → prod
+#
+# PROD should have:
+# GitHub Settings → Environments → prod → Required reviewers
+
 on:
   push:
-    branches: [dev, qa, main]
+    branches:
+      - dev
+      - qa
+      - main
 
 permissions:
   contents: read
@@ -12,54 +21,212 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     environment: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
-    concurrency: deploy-${{ github.ref_name }}
+
+    concurrency:
+      group: deploy-${{ github.ref_name }}
+      cancel-in-progress: false
+
     env:
       TARGET: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
       ENV: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
-      CATALOG: ${{ vars.CATALOG }}      # energy_dev | energy_qa | energy (per GitHub Environment)
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-      DATABRICKS_CLIENT_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-      DBX_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
-      DBX_SP_CLIENT_ID: ${{ secrets.DATABRICKS_CLIENT_ID }}
-      DBX_SP_SECRET: ${{ secrets.DATABRICKS_CLIENT_SECRET }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with: { python-version: "3.11" }
-      - run: pip install databricks-sql-connector databricks-sdk pyyaml
 
-      # 1) Tables first (DBCR), so jobs/pipelines never run against a missing table.
-      - uses: liquibase/setup-liquibase@v3
-        with: { version: "5.0.3", edition: "community" }
-      - name: Install Databricks extension + JDBC driver
+      # GitHub Environment variable
+      CATALOG: ${{ vars.CATALOG }}
+
+      # GitHub Environment secrets
+      DBX_HOST: ${{ secrets.DBX_HOST }}
+      DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
+
+      DATABRICKS_HOST: ${{ secrets.DBX_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_AUTH_TYPE: pat
+
+    steps:
+
+      # ---------------------------------------------------------
+      # 1. Checkout
+      # ---------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ---------------------------------------------------------
+      # 2. Python
+      # ---------------------------------------------------------
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install databricks-sql-connector databricks-sdk pyyaml
+
+      # ---------------------------------------------------------
+      # 3. Validate deployment configuration
+      # ---------------------------------------------------------
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -e
+
+          test -n "$DBX_HOST" || {
+            echo "ERROR: DBX_HOST is empty"
+            exit 1
+          }
+
+          test -n "$DBX_WAREHOUSE_ID" || {
+            echo "ERROR: DBX_WAREHOUSE_ID is empty"
+            exit 1
+          }
+
+          test -n "$DATABRICKS_TOKEN" || {
+            echo "ERROR: DATABRICKS_TOKEN is empty"
+            exit 1
+          }
+
+          test -n "$CATALOG" || {
+            echo "ERROR: CATALOG is empty"
+            exit 1
+          }
+
+          echo "DBX_HOST is configured"
+          echo "DBX_WAREHOUSE_ID is configured"
+          echo "DATABRICKS_TOKEN is configured"
+          echo "CATALOG=$CATALOG"
+          echo "TARGET=$TARGET"
+
+      # ---------------------------------------------------------
+      # 4. Liquibase
+      # ---------------------------------------------------------
+      - name: Setup Liquibase
+        uses: liquibase/setup-liquibase@v3
+        with:
+          version: "5.0.4"
+          edition: "community"
+
+      - name: Install Liquibase extensions
         run: |
           liquibase lpm add liquibase-databricks --global || true
           liquibase lpm add databricks-jdbc --global || true
+
+      # ---------------------------------------------------------
+      # 5. Render Liquibase properties
+      # ---------------------------------------------------------
       - name: Render liquibase.properties
         working-directory: sql/ddl
+        shell: bash
         run: |
+          sudo apt-get update -qq
           sudo apt-get install -y gettext-base >/dev/null
-          envsubst < liquibase.properties.template > liquibase.properties
-      - name: Plan (records exactly what will be applied)
-        working-directory: sql/ddl
-        run: liquibase updateSQL | tee plan.sql
-      - name: Guard (CREATE CATALOG/SCHEMA still hard-blocked; destructive DDL already gated by the PR label)
-        run: python ci/dbcr_guard.py < sql/ddl/plan.sql
-        env:
-          CONFIRM_DESTRUCTIVE: "true"
-      - name: Apply changesets
-        working-directory: sql/ddl
-        run: liquibase update --contexts=all
-      - name: Tag release in Liquibase history
-        working-directory: sql/ddl
-        run: liquibase tag "${TARGET}-${GITHUB_SHA::7}"
-      - name: Record DBCR audit rows
-        run: python ci/record_dbcr.py sql/ddl/plan.sql
 
-      # 2) Then the Asset Bundle (jobs + pipelines).
-      - uses: databricks/setup-cli@main
-      - run: databricks bundle validate -t "$TARGET"
-      - run: databricks bundle deploy -t "$TARGET"
+          envsubst < liquibase.properties.template > liquibase.properties
+
+          echo "Liquibase properties rendered."
+
+      # ---------------------------------------------------------
+      # DEBUG - Show rendered file
+      # ---------------------------------------------------------
+      - name: Validate rendered liquibase.properties
+        working-directory: sql/ddl
+        shell: bash
+        run: |
+          test -s liquibase.properties
+          grep -q "energy_catalog" liquibase.properties || true
+          echo "Liquibase properties rendered successfully."
+
+      - name: Show Liquibase defaults
+        working-directory: sql/ddl
+        shell: bash
+        run: |
+          liquibase status --verbose
+
+      # ---------------------------------------------------------
+      # 6. Liquibase PLAN
+      # ---------------------------------------------------------
+      - name: Generate Liquibase plan
+        working-directory: sql/ddl
+        shell: bash
+        run: |
+          liquibase updateSQL | tee plan.sql
+
+      # ---------------------------------------------------------
+      # 7. DBCR Guard
+      # ---------------------------------------------------------
+      - name: Run DBCR guard
+        shell: bash
+        run: |
+          python ci/dbcr_guard.py < sql/ddl/plan.sql
+
+        env:
+          # Keep destructive operations blocked unless your
+          # guard explicitly requires this value for normal execution.
+          CONFIRM_DESTRUCTIVE: "false"
+
+      # ---------------------------------------------------------
+      # 8. Apply Liquibase changes
+      # ---------------------------------------------------------
+      - name: Apply Liquibase changesets
+        working-directory: sql/ddl
+        shell: bash
+        run: |
+          liquibase update --contexts=all
+
+      # ---------------------------------------------------------
+      # 9. Tag Liquibase release
+      # ---------------------------------------------------------
+      - name: Tag Liquibase release
+        working-directory: sql/ddl
+        shell: bash
+        run: |
+          liquibase tag "${TARGET}-${GITHUB_SHA::7}"
+
+      # ---------------------------------------------------------
+      # 10. Record DBCR audit
+      # ---------------------------------------------------------
+      - name: Record DBCR audit rows
+        shell: bash
+        run: |
+          python ci/record_dbcr.py sql/ddl/plan.sql
+
+      # ---------------------------------------------------------
+      # 11. Databricks CLI
+      # ---------------------------------------------------------
+      - name: Setup Databricks CLI
+        uses: databricks/setup-cli@main
+
+      # ---------------------------------------------------------
+      # 12. Validate Asset Bundle
+      # ---------------------------------------------------------
+      - name: Validate Databricks Asset Bundle
+        shell: bash
+        run: |
+          set -e
+
+          echo "Testing Databricks authentication..."
+          databricks auth describe
+
+          echo "Testing Databricks identity..."
+          databricks current-user me
+
+          echo "Validating bundle..."
+          databricks bundle validate -t "$TARGET"
+
+      - name: Show Databricks identity
+        shell: bash
+        run: |
+          databricks current-user me
+
+      # ---------------------------------------------------------
+      # 13. Deploy Asset Bundle
+      # ---------------------------------------------------------
+      - name: Deploy Databricks Asset Bundle
+        shell: bash
+        env:
+          DATABRICKS_HOST: ${{ secrets.DBX_HOST }}
+          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+        run: |
+          set -e
+          databricks bundle deploy -t "$TARGET"

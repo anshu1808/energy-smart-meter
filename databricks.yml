@@ -9,9 +9,9 @@ bundle:
 include:
   - resources/jobs/*.yml
 
-sync:
-  exclude:
-    - datasets/**
+#sync:
+  #exclude:
+    #- datasets/**
 
 variables:
   catalog:
@@ -26,7 +26,7 @@ targets:
     mode: development
     default: true
     workspace:
-      profile: energy-dev
+      #profile: energy-dev
       host: https://dbc-23c305ec-be26.cloud.databricks.com
     variables:
       catalog: energy_dev
@@ -38,7 +38,7 @@ targets:
       host: https://dbc-23c305ec-be26.cloud.databricks.com
       root_path: /Workspace/Shared/energy_smart_meter/.bundle/${bundle.target}
     run_as:
-      service_principal_name: "<DEV_SP_APPLICATION_ID>"
+      service_principal_name: "5344eedb-7784-40a2-be58-21e9c59b260e"
     variables:
       catalog: energy_dev
 
@@ -48,7 +48,7 @@ targets:
       host: https://dbc-23c305ec-be26.cloud.databricks.com
       root_path: /Workspace/Shared/energy_smart_meter/.bundle/${bundle.target}
     run_as:
-      service_principal_name: "<QA_SP_APPLICATION_ID>"
+      service_principal_name: "cc98e027-7ed0-4567-99f4-2d0b7eb3a2e3"
     variables:
       catalog: energy_qa
 
@@ -58,7 +58,7 @@ targets:
       host: https://dbc-23c305ec-be26.cloud.databricks.com
       root_path: /Workspace/Shared/energy_smart_meter/.bundle/${bundle.target}
     run_as:
-      service_principal_name: "<PROD_SP_APPLICATION_ID>"
+      service_principal_name: "4ee2288b-500d-45c2-99a1-846da9a8312a"
     variables:
       catalog: energy          # existing catalog = production, so no data has to move
 

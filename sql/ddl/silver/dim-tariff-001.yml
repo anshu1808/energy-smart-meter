@@ -1,0 +1,38 @@
+databaseChangeLog:
+  - changeSet:
+      id: dim-tariff-001
+      author: anshu
+      runInTransaction: false
+      comment: Baseline existing dim_tariff table
+      labels: silver,baseline
+      preConditions:
+        - onFail: MARK_RAN
+          not:
+            - tableExists:
+                catalogName: ${energy_catalog}
+                schemaName: silver
+                tableName: dim_tariff
+      changes:
+        - createTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dim_tariff
+            columns:
+              - column: { name: tariff_key, type: INT }
+              - column: { name: tariff_id, type: STRING }
+              - column: { name: tariff_name, type: STRING }
+              - column: { name: tariff_description, type: STRING }
+              - column: { name: rate_per_kwh, type: DOUBLE }
+              - column: { name: status, type: STRING }
+              - column: { name: region, type: STRING }
+              - column: { name: load_ts, type: TIMESTAMP }
+              - column: { name: dq_passed, type: BOOLEAN }
+              - column: { name: dq_failed_checks, type: STRING }
+              - column: { name: schema_drift_detected, type: BOOLEAN }
+              - column: { name: schema_drift_columns, type: STRING }
+              - column: { name: tariff_half_hour, type: TIMESTAMP }
+      rollback:
+        - dropTable:
+            catalogName: ${energy_catalog}
+            schemaName: silver
+            tableName: dim_tariff

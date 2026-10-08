@@ -16,8 +16,22 @@ import sys
 
 CHANGESET_MARKER = re.compile(r"^--\s*Changeset\s+(?P<file>.+?)::(?P<id>.+?)::(?P<author>.+?)\s*$", re.M)
 DESTRUCTIVE = re.compile(r"\b(DROP|DELETE\s+FROM|TRUNCATE)\b", re.I)
-OPERATION = re.compile(r"\b(CREATE|ALTER|DROP|INSERT|UPDATE|DELETE|TRUNCATE|COMMENT|SET)\b", re.I)
-OBJECTS = re.compile(r"(?:TABLE|VIEW|FUNCTION)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([`\w.\-]+)", re.I)
+OPERATIONS = {
+    "CREATE",
+    "ALTER",
+    "DROP",
+    "INSERT",
+    "UPDATE",
+    "DELETE",
+    "TRUNCATE",
+    "COMMENT",
+    "SET",
+    "GRANT",
+    "REVOKE",
+    "MERGE",
+    "REORG",
+}
+OBJECTS = re.compile(r"(?:TABLE|VIEW|FUNCTION|VOLUME)\s+(?:IF\s+(?:NOT\s+)?EXISTS\s+)?([`\w.\-]+)", re.I)
 INTERNAL = re.compile(r"DATABASECHANGELOG", re.I)
 
 
@@ -30,12 +44,13 @@ def parse_plan(plan_sql: str) -> list[dict]:
         body = re.sub(r"--[^\n\r]*", "", plan_sql[m.end() : end])
         statements = [s.strip() for s in body.split(";") if s.strip() and not INTERNAL.search(s)]
         text = "\n".join(statements)
-        op = OPERATION.search(text)
+        first = statements[0].split(None, 1)[0].upper() if statements else ""
+        op = first if first in OPERATIONS else "UNKNOWN"
         rows.append(
             {
                 "changeset_id": m.group("id"),
                 "author": m.group("author"),
-                "operation": op.group(1).upper() if op else "UNKNOWN",
+                "operation": op,
                 "objects": ",".join(dict.fromkeys(OBJECTS.findall(text))) or "unknown",
                 "is_destructive": bool(DESTRUCTIVE.search(text)),
             }
@@ -46,18 +61,13 @@ def parse_plan(plan_sql: str) -> list[dict]:
 def get_connection():
     # imported lazily so unit tests run without the connector installed
     from databricks import sql
-    from databricks.sdk.core import Config, oauth_service_principal
 
     host = os.environ["DBX_HOST"].replace("https://", "")
-    cfg = Config(
-        host=f"https://{host}",
-        client_id=os.environ["DBX_SP_CLIENT_ID"],
-        client_secret=os.environ["DBX_SP_SECRET"],
-    )
+
     return sql.connect(
         server_hostname=host,
         http_path=f"/sql/1.0/warehouses/{os.environ['DBX_WAREHOUSE_ID']}",
-        credentials_provider=lambda: oauth_service_principal(cfg),
+        access_token=os.environ["DATABRICKS_TOKEN"],
     )
 
 
@@ -75,7 +85,7 @@ def main(plan_path: str = "sql/ddl/plan.sql") -> int:
         for r in rows:
             cur.execute(
                 f"INSERT INTO {table} (dbcr_id, work_item_id, changeset_id, author, approvers, environment, "
-                "operation, objects, is_destructive, rollback_available, checksum, git_commit, applied_at, status) "
+                "operation, objects, is_destructive, is_rollback_available, checksum, git_commit, applied_at, status) "
                 "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 [
                     dbcr_id,
