@@ -1,0 +1,1000 @@
+1. What this project is
+
+Your project is an end-to-end Smart Energy / Smart Meter Data Engineering platform built on Databricks AWS.
+
+The core idea is:
+
+Energy / Smart Meter Data
+        ↓
+    Ingestion
+        ↓
+     Bronze
+        ↓
+     Silver
+        ↓
+      Gold
+        ↓
+ Analytics / Reporting / ML / AI
+
+The project is designed to demonstrate production-style Data Engineering, not just a Databricks notebook.
+
+The important parts are:
+
+Databricks AWS
+Unity Catalog
+Delta Lake
+PySpark
+Medallion Architecture
+Databricks Asset Bundles
+Databricks Workflows / Jobs
+GitHub
+GitHub Actions CI/CD
+Liquibase database/schema management
+SQL Warehouse
+Python
+Automated testing
+Data-quality controls
+Environment separation
+Service-principal-based job execution
+Deployment security
+Audit/DBCR tracking
+
+This is consistent with how modern smart-meter platforms are commonly structured: high-volume time-series meter data is ingested, normalized, governed, and then used for operational analytics.
+
+2. The business problem
+
+Imagine an electricity company has thousands or millions of smart meters.
+
+Every meter continuously produces information such as:
+
+Meter ID
+Date/time
+Consumption
+Tariff type
+Customer information
+Weather
+Region
+
+The business wants to answer questions like:
+
+How much electricity is being consumed?
+Which customers consume the most?
+What is peak demand?
+What is the hourly consumption pattern?
+Which meters have abnormal readings?
+Which regions have increasing consumption?
+Can future demand be predicted?
+Can abnormal consumption be detected?
+Can this data eventually feed ML/AI models?
+
+Your project builds the data foundation required for those use cases.
+
+3. Overall architecture
+
+The architecture you have built is essentially:
+
+                     ┌──────────────────────┐
+                     │      Data Sources    │
+                     │──────────────────────│
+                     │ EIA                  │
+                     │ Open-Meteo           │
+                     │ UCI Household Data   │
+                     └──────────┬───────────┘
+                                │
+                                ▼
+                     ┌──────────────────────┐
+                     │     Databricks AWS   │
+                     │                      │
+                     │   PySpark / Jobs     │
+                     └──────────┬───────────┘
+                                │
+                                ▼
+              ┌─────────────────────────────────┐
+              │             BRONZE              │
+              │         Raw / Immutable         │
+              │                                 │
+              │ meter readings                   │
+              │ source metadata                  │
+              │ ingestion metadata              │
+              └──────────────┬──────────────────┘
+                             │
+                             ▼
+              ┌─────────────────────────────────┐
+              │             SILVER              │
+              │       Cleaned / Validated       │
+              │                                 │
+              │ schema normalization             │
+              │ data quality                     │
+              │ transformations                  │
+              │ standardized timestamps          │
+              └──────────────┬──────────────────┘
+                             │
+                             ▼
+              ┌─────────────────────────────────┐
+              │              GOLD               │
+              │      Business / Analytics       │
+              │                                 │
+              │ dimensions                       │
+              │ facts                            │
+              │ aggregations                     │
+              │ analytics-ready data             │
+              └──────────────┬──────────────────┘
+                             │
+                             ▼
+                  Analytics / ML / AI
+
+And around this entire architecture you have:
+
+GitHub
+   │
+   ▼
+GitHub Actions
+   │
+   ├── Tests
+   ├── Liquibase validation
+   ├── DBCR guard
+   ├── Liquibase deployment
+   ├── Databricks Bundle validation
+   └── Databricks Bundle deployment
+4. Your Medallion Architecture
+
+This is one of the most important things you should be able to explain in an interview.
+
+Bronze
+
+Bronze is your raw ingestion layer.
+
+Its purpose is not to make the data beautiful.
+
+Its purpose is:
+
+Preserve what came from the source while adding ingestion metadata.
+
+For example, your meter-reading structure includes fields such as:
+
+LCLid
+stdorToU
+DateTime
+kwh_hh
+load_ts
+source_system
+schema_drift_detected
+schema_drift_columns
+
+So conceptually:
+
+Source
+   ↓
+Bronze
+
+The Bronze layer gives you:
+
+traceability
+replay capability
+source preservation
+ingestion timestamps
+schema-drift information
+5. Silver layer
+
+Silver is where raw data becomes usable and trustworthy.
+
+Typical processing includes:
+
+Bronze
+  ↓
+Data type conversion
+  ↓
+Null handling
+  ↓
+Duplicate handling
+  ↓
+Schema validation
+  ↓
+Business validation
+  ↓
+Standardization
+  ↓
+Silver
+
+For example:
+
+kwh_hh
+STRING
+   ↓
+validation
+   ↓
+numeric consumption
+
+You also have a DQ failure/quarantine concept.
+
+Instead of silently dropping bad records:
+
+Bad record
+     ↓
+DQ validation
+     ↓
+quarantine / dq_failures
+
+That is a much more production-oriented approach.
+
+6. Gold layer
+
+Gold is the business-facing layer.
+
+The idea is:
+
+Silver
+   ↓
+Business transformations
+   ↓
+Dimensions + Facts
+   ↓
+Gold
+
+Your project has:
+
+Gold
+ ├── Dimensions
+ └── Facts
+
+This is where you can eventually support:
+
+daily consumption
+hourly consumption
+customer/meter analytics
+regional consumption
+peak demand
+energy trends
+anomaly detection
+ML feature generation
+
+This separation follows the standard lakehouse/medallion concept used for analytical data platforms. Databricks also documents tested medallion patterns for smart-grid/energy datasets.
+
+7. Unity Catalog
+
+Unity Catalog is your governance layer.
+
+Your environment structure is:
+
+DEV
+energy_dev
+
+QA
+energy_qa
+
+PROD
+energy
+
+And within each:
+
+energy_dev
+│
+├── bronze
+├── silver
+├── gold
+└── audit
+
+Same concept for QA and PROD.
+
+So your three-level naming becomes:
+
+catalog.schema.table
+
+For example:
+
+energy_dev.bronze.bronze_meter_readings
+
+This is important because you don't hardcode:
+
+energy_dev
+
+throughout your code.
+
+Instead you use the environment-specific catalog.
+
+8. Why the catalog variable exists
+
+Your databricks.yml contains:
+
+variables:
+  catalog:
+
+Then:
+
+local → energy_dev
+dev   → energy_dev
+qa    → energy_qa
+prod  → energy
+
+So the same code can be deployed to different environments.
+
+Conceptually:
+
+Same code
+     │
+     ├── DEV → energy_dev
+     ├── QA  → energy_qa
+     └── PROD → energy
+
+That's a very important DevOps principle.
+
+9. Databricks Asset Bundles
+
+Your databricks.yml is the deployment definition for the Databricks application.
+
+It describes:
+
+bundle name
+resources
+targets
+workspace
+catalog
+environment
+run identity
+deployment path
+
+You have:
+
+local
+dev
+qa
+prod
+
+The important production targets use:
+
+mode: production
+
+and:
+
+run_as:
+  service_principal_name: ...
+10. Why run_as is important
+
+This is something you've specifically worked through.
+
+Your job should not execute as your personal user in QA/PROD.
+
+Instead:
+
+GitHub / deployment user
+          │
+          │ deploys job
+          ▼
+Databricks Job
+          │
+          │ run_as
+          ▼
+Service Principal
+
+You have separate service principals:
+
+DEV
+Energy Smart Meter DEV
+
+QA
+Energy Smart Meter QA
+
+PROD
+Energy Smart Meter PROD
+
+This is a good enterprise pattern.
+
+The deployment identity needs the equivalent servicePrincipal.user / Use permission to bind the service principal to the job. That's exactly the permission issue we previously encountered.
+
+11. Your environments
+
+Your deployment flow is:
+
+feature branch
+      ↓
+Pull Request
+      ↓
+dev
+      ↓
+QA
+      ↓
+main
+      ↓
+PROD
+
+And your branch mapping is:
+
+dev  → DEV
+qa   → QA
+main → PROD
+
+So:
+
+Git branch
+    ↓
+GitHub Actions
+    ↓
+Environment
+    ↓
+Catalog
+    ↓
+Databricks target
+12. GitHub Actions
+
+Your GitHub Actions pipeline is effectively your CI/CD engine.
+
+The workflow does approximately:
+
+Checkout
+   ↓
+Python setup
+   ↓
+Install dependencies
+   ↓
+Validate environment variables
+   ↓
+Install Liquibase
+   ↓
+Install Databricks/Liquibase extensions
+   ↓
+Render Liquibase properties
+   ↓
+Liquibase status
+   ↓
+Liquibase updateSQL
+   ↓
+DBCR safety guard
+   ↓
+Liquibase update
+   ↓
+Audit DBCR
+   ↓
+Install Databricks CLI
+   ↓
+Databricks identity check
+   ↓
+Bundle validate
+   ↓
+Bundle deploy
+
+That's much more than:
+
+git push → deploy
+
+You're building a proper deployment pipeline.
+
+13. Liquibase
+
+Liquibase manages your database/schema structure.
+
+This is an important architectural separation.
+
+You don't want Python code to randomly create tables like:
+
+spark.sql("CREATE TABLE ...")
+
+Instead:
+
+Liquibase
+    ↓
+Database/Table schema
+
+while:
+
+PySpark
+    ↓
+Data ingestion/transformation
+
+So:
+
+Infrastructure/schema
+        │
+        ▼
+    Liquibase
+
+Data processing
+        │
+        ▼
+      PySpark
+
+That's a clean separation.
+
+14. Your Liquibase baseline
+
+You have been creating a baseline for approximately 23 tables across:
+
+bronze
+silver
+gold
+audit
+
+Your changelog organization is structured rather than putting everything into one giant file.
+
+For example conceptually:
+
+sql/ddl/
+│
+├── master changelog
+│
+├── audit/
+│
+├── bronze/
+│
+├── silver/
+│
+├── gold/
+│
+└── security/
+
+Your changesets follow a naming convention like:
+
+bronze-meter-readings-001
+
+with:
+
+author: anshu
+
+and:
+
+catalogName: "${energy_catalog}"
+
+This makes the schema deployment environment-aware.
+
+15. Your DBCR safety mechanism
+
+This is another good engineering feature.
+
+Before Liquibase actually modifies the database:
+
+liquibase updateSQL
+       ↓
+     plan.sql
+       ↓
+ DBCR guard
+       ↓
+Liquibase update
+
+Your guard checks for dangerous operations.
+
+You've specifically designed it to protect against operations such as:
+
+DROP
+DELETE
+TRUNCATE
+CREATE SCHEMA
+CREATE CATALOG
+
+The idea is:
+
+Generate the SQL first, inspect it automatically, and only then apply it.
+
+That is a strong CI/CD safety pattern.
+
+16. Your audit layer
+
+You also have an:
+
+audit
+
+schema.
+
+You've been maintaining:
+
+audit.pipeline_lineage
+audit.dbcr
+
+The purpose is to provide operational traceability.
+
+For example:
+
+Deployment
+   ↓
+Changeset
+   ↓
+DBCR plan
+   ↓
+Execution
+   ↓
+Audit record
+
+So someone can eventually understand:
+
+What was deployed, when, by which pipeline, and what database changes were involved?
+
+17. Data Quality
+
+Your architecture isn't just:
+
+Source → Bronze → Silver → Gold
+
+It also has quality controls.
+
+Conceptually:
+
+Incoming data
+      ↓
+Schema validation
+      ↓
+Data validation
+      ↓
+Business validation
+      ↓
+ ┌──────────────┐
+ │              │
+Valid          Invalid
+ │              │
+ ▼              ▼
+Silver       DQ failure
+
+You have a dedicated DQ failure concept/table.
+
+That gives you better operational behavior than simply deleting invalid rows.
+
+18. Schema drift
+
+You also explicitly account for schema drift.
+
+Your Bronze structure contains:
+
+schema_drift_detected
+schema_drift_columns
+
+This means you're considering a real-world problem:
+
+Today's source:
+A B C
+
+Tomorrow:
+A B C D
+
+Instead of the pipeline silently breaking, you can identify that the source structure changed.
+
+This is important in production ingestion systems.
+
+19. Data sources
+
+Your project is designed around real energy-related data sources rather than arbitrary demo data.
+
+The main sources you've worked with include:
+
+EIA
+
+Energy Information Administration regional/hourly energy data.
+
+Open-Meteo
+
+Weather information used as an additional energy-related dataset.
+
+UCI Household Electricity
+
+Household electricity consumption data.
+
+The point isn't simply to load three datasets.
+
+The point is to create a multi-source energy data platform.
+
+20. Why weather exists
+
+Earlier you questioned why weather was being introduced.
+
+The reason from an energy analytics perspective is:
+
+Weather
+   +
+Electricity consumption
+   ↓
+Energy analytics
+
+For example, temperature can influence:
+
+AC usage
+Heating
+Peak demand
+Daily consumption
+
+So weather can eventually become a feature for:
+
+Demand forecasting
+Anomaly detection
+Consumption prediction
+
+But it is not required for the basic smart-meter ingestion pipeline. It is an enrichment source.
+
+21. Databricks Jobs
+
+Your Databricks resources include an energy pipeline/job.
+
+Conceptually:
+
+Databricks Job
+      │
+      ├── ingestion
+      ├── bronze processing
+      ├── silver processing
+      ├── gold processing
+      └── quality/operational tasks
+
+The exact task dependency is defined through your resource YAML files.
+
+Your databricks.yml includes:
+
+include:
+  - resources/jobs/*.yml
+
+So the main bundle configuration doesn't contain every job definition.
+
+Instead:
+
+databricks.yml
+      │
+      ▼
+resources/jobs/*.yml
+
+This keeps infrastructure modular.
+
+22. Git strategy
+
+You've also been following a feature-branch workflow.
+
+For example, we've worked through branches like:
+
+feature/...
+      ↓
+PR
+      ↓
+qa
+
+rather than directly modifying:
+
+main
+
+This gives you:
+
+Feature development
+        ↓
+Code review
+        ↓
+Environment deployment
+        ↓
+Production
+
+That's how you should explain the Git process in an interview.
+
+23. Automated testing
+
+You've also established Python tests.
+
+Your project had a baseline of:
+
+9 pytest tests passed
+
+These cover things such as:
+
+baseline generation
+DBCR guard
+naming guard
+record DBCR
+
+So testing isn't limited to Spark transformations.
+
+You're also testing deployment and governance code.
+
+24. Authentication architecture
+
+Your current CI authentication direction is:
+
+GitHub Actions
+      │
+      │ DATABRICKS_HOST
+      │ DATABRICKS_TOKEN
+      ▼
+Databricks CLI
+      │
+      ▼
+Databricks Workspace
+
+The important distinction is:
+
+Deployment authentication
+
+The PAT authenticates the deployment command.
+
+Job execution identity
+
+run_as determines which service principal executes the Databricks job.
+
+Therefore:
+
+PAT
+ ↓
+Who is deploying?
+
+run_as Service Principal
+ ↓
+Who runs the job?
+
+Those are two different concepts.
+
+This distinction is extremely important.
+
+25. The authentication issue we fixed
+
+You had an issue where CI tried to find:
+
+/home/runner/.databrickscfg
+
+because the bundle configuration was referring to:
+
+profile: energy-dev
+
+That profile existed on your local machine, but GitHub Actions doesn't have your local .databrickscfg.
+
+We changed the architecture so CI uses environment authentication:
+
+DATABRICKS_HOST
+DATABRICKS_TOKEN
+DATABRICKS_AUTH_TYPE=pat
+
+instead of relying on your personal local profile.
+
+After that:
+
+databricks bundle validate -t qa
+
+worked.
+
+26. The service-principal issue we fixed
+
+Then we hit another issue:
+
+Cannot bind the service principal...
+user must have servicePrincipal.user role
+
+We correctly didn't remove run_as.
+
+Instead:
+
+Deployment user
+      │
+      │ Use permission
+      ▼
+QA service principal
+      │
+      ▼
+Databricks Job
+
+This preserves the enterprise deployment model.
+
+27. Your current QA status
+
+At the moment, your QA bundle validation is successful:
+
+Name: energy_smart_meter
+Target: qa
+
+Workspace:
+  Host: ...
+  User: anshu.accent@gmail.com
+  Path:
+  /Workspace/Shared/energy_smart_meter/.bundle/qa
+
+Found 1 warning
+
+The warning is:
+
+Shared path is writable by all workspace users
+
+This is not currently a deployment failure.
+
+So your current position is approximately:
+
+Git
+  ↓
+GitHub
+  ↓
+GitHub Actions authentication       ✅
+  ↓
+Liquibase                           ✅/in progress
+  ↓
+Databricks authentication           ✅
+  ↓
+Bundle validation                   ✅
+  ↓
+run_as configuration                ✅ configured
+  ↓
+Service principal Use permission   ✅ addressed
+  ↓
+Bundle deployment                   ← current step
+28. The most important architecture distinction
+
+If you need to explain this project in an interview, don't describe it as:
+
+"I created some Databricks notebooks to process smart meter data."
+
+That's underselling it.
+
+Explain it as:
+
+"I built an environment-aware Databricks lakehouse platform for smart-meter data, using a Medallion architecture with Bronze, Silver and Gold layers. Data is processed using PySpark and governed through Unity Catalog. Database schema changes are managed separately using Liquibase, with a DBCR safety gate before execution. Databricks resources are packaged using Databricks Asset Bundles, while GitHub Actions provides CI/CD across DEV, QA and PROD. Production jobs use environment-specific service principals through run_as, while deployment authentication is handled independently through CI credentials."
+
+That's a 5+ year Data Engineer-level explanation.
+
+29. One-picture understanding
+
+Keep this mental model:
+
+                         GITHUB
+                           │
+                    Feature Branch / PR
+                           │
+                           ▼
+                    GitHub Actions
+                           │
+             ┌─────────────┴─────────────┐
+             │                           │
+       Liquibase                    Databricks CLI
+             │                           │
+       Schema / DDL                 DAB validation
+             │                           │
+       DBCR Safety Gate             DAB deployment
+             │                           │
+             └─────────────┬─────────────┘
+                           │
+                           ▼
+                    DATABRICKS AWS
+                           │
+                    Unity Catalog
+                           │
+          ┌────────────────┼────────────────┐
+          │                │                │
+       BRONZE           SILVER            GOLD
+          │                │                │
+       Raw data        Clean data      Business data
+          │                │                │
+          └────────────────┼────────────────┘
+                           │
+                           ▼
+                  Analytics / ML / AI
+
+And environment-wise:
+
+                    SAME CODEBASE
+                         │
+          ┌──────────────┼──────────────┐
+          ▼              ▼              ▼
+        DEV             QA             PROD
+          │              │              │
+    energy_dev      energy_qa        energy
+          │              │              │
+      DEV SP          QA SP          PROD SP
+          │              │              │
+          └──────────────┼──────────────┘
+                         │
+                    run_as identity
+30. Where your project stands now
+
+I would classify your project into these stages:
+
+Area	Status
+Databricks AWS foundation	✅
+Unity Catalog	✅
+DEV/QA/PROD catalogs	✅
+Bronze/Silver/Gold architecture	✅
+PySpark processing	✅
+Data ingestion	✅
+Data quality framework	✅
+Schema drift handling	✅
+Audit layer	✅
+Liquibase baseline	✅/being finalized
+DBCR safety mechanism	✅
+Databricks Asset Bundles	✅
+Environment targets	✅
+run_as service principals	✅
+Service-principal permissions	✅ addressed
+Git branching	✅
+GitHub Actions	✅
+CI authentication	✅
+QA bundle validation	✅
+QA bundle deployment	Current step
+Production deployment	⏳
+Advanced ML/AI layer	Future phase
+The project in one sentence
+
+You are building a production-style, multi-environment Smart Meter Lakehouse on Databricks AWS where PySpark handles data engineering, Delta/Unity Catalog provide the governed data platform, Liquibase manages database structure, Databricks Asset Bundles manage infrastructure, and GitHub Actions automates controlled deployment from DEV → QA → PROD.
+
+That is the high-level understanding I will use going forward when we continue working on this project.
