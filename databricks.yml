@@ -26,7 +26,7 @@ targets:
     mode: development
     default: true
     workspace:
-      profile: energy-dev
+      #profile: energy-dev
       host: https://dbc-23c305ec-be26.cloud.databricks.com
     variables:
       catalog: energy_dev
