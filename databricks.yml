@@ -19,6 +19,8 @@ variables:
   pipeline_development:
     description: DLT development mode
     default: false
+  job_run_group:
+    description: Databricks group allowed to run the pipeline
 
 targets:
   # your personal sandbox: databricks bundle deploy -t local
