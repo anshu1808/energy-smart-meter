@@ -38,7 +38,10 @@ jobs:
       # GitHub Environment secrets
       DBX_HOST: ${{ secrets.DBX_HOST }}
       DBX_WAREHOUSE_ID: ${{ secrets.DBX_WAREHOUSE_ID }}
+
+      DATABRICKS_HOST: ${{ secrets.DBX_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_AUTH_TYPE: pat
 
     steps:
 
@@ -199,12 +202,16 @@ jobs:
       # ---------------------------------------------------------
       - name: Validate Databricks Asset Bundle
         shell: bash
-        env:
-          DATABRICKS_HOST: ${{ secrets.DBX_HOST }}
-          DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
         run: |
           set -e
+
+          echo "Testing Databricks authentication..."
+          databricks auth describe
+
+          echo "Testing Databricks identity..."
           databricks current-user me
+
+          echo "Validating bundle..."
           databricks bundle validate -t "$TARGET"
 
       - name: Show Databricks identity
