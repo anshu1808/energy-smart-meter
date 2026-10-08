@@ -5,6 +5,10 @@ resources:
 
       name: energy_pipeline_job
 
+      permissions:
+        - group_name: energy-qa-users
+          level: CAN_MANAGE_RUN
+
       tasks:
 
         # =====================================

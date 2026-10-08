@@ -19,6 +19,8 @@ variables:
   pipeline_development:
     description: DLT development mode
     default: false
+  job_run_group:
+    description: Databricks group allowed to run the pipeline
 
 targets:
   # your personal sandbox: databricks bundle deploy -t local
@@ -31,6 +33,7 @@ targets:
     variables:
       catalog: energy_dev
       pipeline_development: true
+      job_run_group: energy-dev-users
 
   dev:
     mode: production
@@ -41,6 +44,7 @@ targets:
       service_principal_name: "5344eedb-7784-40a2-be58-21e9c59b260e"
     variables:
       catalog: energy_dev
+      job_run_group: energy-dev-users
 
   qa:
     mode: production
@@ -51,6 +55,7 @@ targets:
       service_principal_name: "cc98e027-7ed0-4567-99f4-2d0b7eb3a2e3"
     variables:
       catalog: energy_qa
+      job_run_group: energy-qa-users
 
   prod:
     mode: production
@@ -61,6 +66,7 @@ targets:
       service_principal_name: "4ee2288b-500d-45c2-99a1-846da9a8312a"
     variables:
       catalog: energy          # existing catalog = production, so no data has to move
+      job_run_group: energy-prod-operators
 
 permissions:
   - user_name: anshu.accent@gmail.com
