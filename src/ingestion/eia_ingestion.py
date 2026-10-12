@@ -7,7 +7,8 @@ import requests
 from pyspark.shell import spark
 from pyspark.sql.functions import current_timestamp, lit
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Databricks exec()s task files, so the module's file-path global does not exist there; the code filename always does.
+sys.path.insert(0, str(Path(sys._getframe().f_code.co_filename).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
 
 catalog = get_catalog()
@@ -108,7 +109,7 @@ def get_last_pipeline_start_ts():
 
 RAW_EIA_PATH = f"/Volumes/{catalog}/bronze/raw/eia"
 
-API_URL = "https://api.eia.gov/v2/electricity/" "rto/region-data/data/"
+API_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/"
 
 # =====================================================
 # INGESTION
@@ -146,7 +147,7 @@ def fetch_eia_data():
     records = payload["response"]["data"]
 
     if not records:
-        print(f"No new EIA records after watermark=" f"{last_pipeline_start_ts or 'bootstrap'}")
+        print(f"No new EIA records after watermark={last_pipeline_start_ts or 'bootstrap'}")
         return
 
     load_id = datetime.now().strftime("%Y%m%d_%H%M%S")

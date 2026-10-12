@@ -6,7 +6,8 @@ from delta.tables import DeltaTable
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import current_timestamp, lit
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Databricks exec()s task files, so the module's file-path global does not exist there; the code filename always does.
+sys.path.insert(0, str(Path(sys._getframe().f_code.co_filename).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
 from common.data_quality import validate_data_quality  # noqa: E402
 from common.schema_drift import add_schema_drift_metadata  # noqa: E402
@@ -51,7 +52,6 @@ tariff_df.show()
 target_table = f"{catalog}.bronze.bronze_tariff"
 
 if spark.catalog.tableExists(target_table):
-
     target = DeltaTable.forName(spark, target_table)
 
     (
@@ -69,7 +69,6 @@ if spark.catalog.tableExists(target_table):
     )
 
 else:
-
     (tariff_df.write.format("delta").option("mergeSchema", "true").saveAsTable(target_table))
 
 print("bronze_tariff loaded")

@@ -6,7 +6,8 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, concat, current_timestamp, lit, lpad, row_number, when
 from pyspark.sql.window import Window
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Databricks exec()s task files, so the module's file-path global does not exist there; the code filename always does.
+sys.path.insert(0, str(Path(sys._getframe().f_code.co_filename).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
 from common.data_quality import validate_data_quality  # noqa: E402
 from common.schema_drift import add_schema_drift_metadata  # noqa: E402
@@ -98,7 +99,6 @@ dim_customer = dim_customer.select(
 # ==========================================
 
 if not spark.catalog.tableExists(TARGET_TABLE):
-
     (dim_customer.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial dim_customer load complete")
@@ -108,7 +108,6 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 # ==========================================
 
 else:
-
     target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (
