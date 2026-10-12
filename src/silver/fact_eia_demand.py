@@ -13,6 +13,7 @@ from pyspark.sql.functions import (
     to_date,
     to_timestamp,
 )
+
 # Databricks exec()s task files, so the module's file-path global does not exist there; the code filename always does.
 sys.path.insert(0, str(Path(sys._getframe().f_code.co_filename).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402

@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(sys._getframe().f_code.co_filename).resolve().parent
 from common.config import get_catalog  # noqa: E402
 from common.data_quality import validate_data_quality  # noqa: E402
 from common.schema_drift import add_schema_drift_metadata  # noqa: E402
+
 catalog = get_catalog()
 
 spark = SparkSession.builder.getOrCreate()
