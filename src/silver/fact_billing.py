@@ -167,11 +167,9 @@ billing = billing.dropDuplicates(["billing_business_key"])
 TARGET_TABLE = f"{catalog}.silver.fact_billing"
 
 if not spark.catalog.tableExists(TARGET_TABLE):
-
     (billing.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
 else:
-
     target = DeltaTable.forName(spark, TARGET_TABLE)
 
     # Align schemas: add new source columns to target, add stale target columns to source as nulls

@@ -95,7 +95,6 @@ fact_df = fact_df.dropDuplicates(["weather_business_key"])
 # =====================================================
 
 if not spark.catalog.tableExists(TARGET_TABLE):
-
     (fact_df.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial fact_weather load complete")
@@ -105,7 +104,6 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 # =====================================================
 
 else:
-
     target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (

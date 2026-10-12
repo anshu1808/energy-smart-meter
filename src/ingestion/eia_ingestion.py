@@ -109,7 +109,7 @@ def get_last_pipeline_start_ts():
 
 RAW_EIA_PATH = f"/Volumes/{catalog}/bronze/raw/eia"
 
-API_URL = "https://api.eia.gov/v2/electricity/" "rto/region-data/data/"
+API_URL = "https://api.eia.gov/v2/electricity/rto/region-data/data/"
 
 # =====================================================
 # INGESTION
@@ -147,7 +147,7 @@ def fetch_eia_data():
     records = payload["response"]["data"]
 
     if not records:
-        print(f"No new EIA records after watermark=" f"{last_pipeline_start_ts or 'bootstrap'}")
+        print(f"No new EIA records after watermark={last_pipeline_start_ts or 'bootstrap'}")
         return
 
     load_id = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -111,7 +111,6 @@ dim_tariff = add_schema_drift_metadata(spark, dim_tariff, TARGET_TABLE)
 # =====================================================
 
 if not spark.catalog.tableExists(TARGET_TABLE):
-
     (dim_tariff.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial dim_tariff load complete")
@@ -121,7 +120,6 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 # =====================================================
 
 else:
-
     target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (

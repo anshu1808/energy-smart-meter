@@ -52,7 +52,6 @@ tariff_df.show()
 target_table = f"{catalog}.bronze.bronze_tariff"
 
 if spark.catalog.tableExists(target_table):
-
     target = DeltaTable.forName(spark, target_table)
 
     (
@@ -70,7 +69,6 @@ if spark.catalog.tableExists(target_table):
     )
 
 else:
-
     (tariff_df.write.format("delta").option("mergeSchema", "true").saveAsTable(target_table))
 
 print("bronze_tariff loaded")

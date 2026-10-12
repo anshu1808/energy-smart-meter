@@ -114,7 +114,5 @@ weather_df = (
     .withColumn("_load_id", lit(load_ts))
 )
 
-(weather_df.write.mode("append").parquet(
-    f"/Volumes/{catalog}/bronze/raw/weather/weather_{load_ts}"
-))
+(weather_df.write.mode("append").parquet(f"/Volumes/{catalog}/bronze/raw/weather/weather_{load_ts}"))
 print("Weather raw snapshot written successfully")

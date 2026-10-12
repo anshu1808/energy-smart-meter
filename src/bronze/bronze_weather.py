@@ -51,7 +51,6 @@ bronze_df.show()
 target_table = f"{catalog}.bronze.bronze_weather"
 
 if spark.catalog.tableExists(target_table):
-
     target = DeltaTable.forName(spark, target_table)
 
     (
@@ -68,7 +67,6 @@ if spark.catalog.tableExists(target_table):
     )
 
 else:
-
     (bronze_df.write.format("delta").option("mergeSchema", "true").saveAsTable(target_table))
 
 print("bronze_weather loaded")

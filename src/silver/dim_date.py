@@ -74,7 +74,6 @@ dim_date = add_schema_drift_metadata(spark, dim_date, TARGET_TABLE)
 # =====================================================
 
 if not spark.catalog.tableExists(TARGET_TABLE):
-
     (dim_date.write.format("delta").saveAsTable(TARGET_TABLE))
 
     print("Initial dim_date load complete")
@@ -84,7 +83,6 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 # =====================================================
 
 else:
-
     target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (

@@ -59,7 +59,6 @@ meter_df = validate_data_quality(
 # ==========================================
 
 if not spark.catalog.tableExists(TARGET_TABLE):
-
     (meter_df.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial bronze_meter_readings load complete")
@@ -69,7 +68,6 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 # ==========================================
 
 else:
-
     target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (
