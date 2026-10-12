@@ -7,7 +7,8 @@ from pyspark.sql.functions import avg, count, current_timestamp, date_format
 from pyspark.sql.functions import max as spark_max
 from pyspark.sql.functions import sum as spark_sum
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+# Databricks exec()s task files, so the module's file-path global does not exist there; the code filename always does.
+sys.path.insert(0, str(Path(sys._getframe().f_code.co_filename).resolve().parents[1]))
 from common.config import get_catalog  # noqa: E402
 from common.data_quality import validate_data_quality  # noqa: E402
 
