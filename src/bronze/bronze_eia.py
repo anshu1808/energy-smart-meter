@@ -47,7 +47,6 @@ eia_df.show()
 target_table = f"{catalog}.bronze.bronze_eia"
 
 if spark.catalog.tableExists(target_table):
-
     target = DeltaTable.forName(spark, target_table)
 
     (
@@ -68,5 +67,4 @@ if spark.catalog.tableExists(target_table):
     )
 
 else:
-
     (eia_df.write.format("delta").option("mergeSchema", "true").saveAsTable(target_table))

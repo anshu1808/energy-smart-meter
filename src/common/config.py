@@ -15,7 +15,7 @@ def get_catalog() -> str:
 
     if not catalog or not catalog.strip():
         raise RuntimeError(
-            "Databricks catalog not configured. Pass it as the first task argument " "or set DATABRICKS_CATALOG."
+            "Databricks catalog not configured. Pass it as the first task argument or set DATABRICKS_CATALOG."
         )
 
     return catalog.strip()

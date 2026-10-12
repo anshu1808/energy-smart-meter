@@ -99,7 +99,6 @@ dim_customer = dim_customer.select(
 # ==========================================
 
 if not spark.catalog.tableExists(TARGET_TABLE):
-
     (dim_customer.write.format("delta").option("mergeSchema", "true").saveAsTable(TARGET_TABLE))
 
     print("Initial dim_customer load complete")
@@ -109,7 +108,6 @@ if not spark.catalog.tableExists(TARGET_TABLE):
 # ==========================================
 
 else:
-
     target = DeltaTable.forName(spark, TARGET_TABLE)
 
     (
